@@ -1,0 +1,423 @@
+# -*- coding: utf-8 -*-
+"""
+Enhanced EIS Analyzer
+Direct integration with standard EIS analyzer to avoid complex import path issues
+
+Author: Jack
+Date: 2025-07-04
+"""
+
+import numpy as np
+import logging
+from typing import Optional, Dict, List, Tuple
+
+# Direct import of standard EIS analyzer
+from .eis_analyzer import EISAnalyzer
+
+logger = logging.getLogger(__name__)
+
+
+class EnhancedEISAnalyzer:
+    """
+    Enhanced EIS Analyzer
+    Direct integration with standard EIS analyzer methods
+    """
+    
+    def __init__(self):
+        """Initialize Enhanced EIS Analyzer"""
+        self.logger = logging.getLogger(__name__)
+        
+        # Create standard EIS analyzer instance
+        try:
+            self.logger.info("正在初始化标准EIS分析器...")
+            self.eis_analyzer = EISAnalyzer()
+            self.algorithm_available = True
+            self.logger.info("✅ Enhanced EIS analyzer initialized successfully (using standard EIS analyzer)")
+            self.logger.info(f"✅ EIS分析器实例: {type(self.eis_analyzer)}")
+        except Exception as e:
+            self.logger.error(f"❌ Failed to create EIS analyzer: {e}")
+            import traceback
+            self.logger.error(f"❌ 详细错误信息: {traceback.format_exc()}")
+            self.algorithm_available = False
+            self.eis_analyzer = None
+        
+        # 🚀 性能优化配置
+        self.fast_mode = False  # 快速计算模式
+        self.calculation_cache = {}  # 计算缓存
+        self.cache_enabled = True  # 缓存开关
+
+        # Analysis configuration
+        self.config = {
+            'min_data_points': 10,
+            'max_rs_value': 50.0,  # mOhm
+            'max_rct_value': 100.0,  # mOhm
+            'max_rsei_value': 20.0,  # mOhm
+        }
+
+    def enable_fast_mode(self):
+        """启用快速计算模式 - 已废弃，统一使用标准算法"""
+        self.fast_mode = False  # 强制禁用快速模式
+        self.logger.warning("⚠️ 快速模式已废弃，统一使用标准算法确保结果一致性")
+
+    def disable_fast_mode(self):
+        """禁用快速计算模式"""
+        self.fast_mode = False
+        self.logger.info("🔄 使用统一的标准算法")
+
+    def calculate_rs_rct_enhanced(self, frequencies: List[float],
+                                 real_parts: List[float],
+                                 imag_parts: List[float],
+                                 cell_id: str = "Unknown") -> Dict:
+        """
+        Calculate complete EIS parameters using enhanced algorithm
+        统一使用标准EIS分析器的增强方法，确保算法一致性
+
+        Args:
+            frequencies: Frequency list (Hz)
+            real_parts: Real impedance list (mOhm)
+            imag_parts: Imaginary impedance list (mOhm)
+            cell_id: Cell ID
+
+        Returns:
+            Complete EIS analysis result dictionary
+        """
+        try:
+            self.logger.info(f"Starting unified enhanced EIS analysis: {cell_id}")
+
+            # 🎯 完美匹配算法：使用修正后的统一算法，完美匹配其他软件结果
+            self.logger.info(f"调用完美匹配EIS算法...")
+
+            try:
+                from backend.unified_eis_algorithm import calculate_unified_eis
+                result = calculate_unified_eis(frequencies, real_parts, imag_parts, cell_id)
+
+                if result and result.get('analysis_success'):
+                    self.logger.info(f"✅ 完美匹配EIS分析完成: Rs={result.get('rs_value', 0):.3f}mΩ, "
+                                   f"Rct={result.get('rct_value', 0):.3f}mΩ, "
+                                   f"Rsei={result.get('rsei_value', 0):.3f}mΩ")
+                else:
+                    self.logger.warning(f"❌ 完美匹配EIS分析失败: {cell_id}")
+
+                return result
+
+            except ImportError as e:
+                self.logger.error(f"完美匹配算法导入失败，回退到标准方法: {e}")
+                # 回退到标准EIS分析器
+                return self.eis_analyzer.calculate_rs_rct_enhanced(
+                    frequencies, real_parts, imag_parts, cell_id
+                )
+            
+        except Exception as e:
+            self.logger.error(f"❌ Enhanced EIS analysis failed: {e}")
+            import traceback
+            self.logger.error(f"❌ 详细错误信息: {traceback.format_exc()}")
+            # Fallback to simplified version
+            self.logger.warning(f"⚠️ 回退到简化版EIS分析")
+            return self._calculate_simplified(frequencies, real_parts, imag_parts, cell_id)
+
+    def _calculate_simplified(self, frequencies: List[float],
+                             real_parts: List[float],
+                             imag_parts: List[float],
+                             cell_id: str) -> Dict:
+        """
+        简化计算模式（已废弃） - 重定向到标准EIS分析器
+        """
+        try:
+            self.logger.warning(f"简化算法已废弃，重定向到标准EIS分析器: {cell_id}")
+
+            # 统一算法重定向到标准EIS分析器的增强方法
+            return self.eis_analyzer.calculate_rs_rct_enhanced(
+                frequencies, real_parts, imag_parts, cell_id
+            )
+
+            # 模拟完整版算法的返回结果结构
+            try:
+                # 使用简化算法计算基础参数
+                real_array = np.array(real_parts)
+                freq_array = np.array(frequencies)
+
+                # 基础参数计算
+                rs_value = np.min(real_array)
+                total_resistance = np.max(real_array) - rs_value
+
+                # 修复针对磷酸铁锂电池优化的Rsei和Rct分离
+                rsei_value = 0.0
+                rct_value = total_resistance
+
+                if len(frequencies) > 3:  # 降低频率点要求
+                    # 修复降低高频阈值，适应磷酸铁锂电池
+                    high_freq_indices = [i for i, f in enumerate(frequencies) if f > 50]  # 从100Hz降到50Hz
+                    if len(high_freq_indices) >= 2:  # 降低最小点数要求
+                        high_freq_real = [real_parts[i] for i in high_freq_indices]
+                        real_change = max(high_freq_real) - min(high_freq_real)
+
+                        # 修复大幅降低检测阈值，适应磷酸铁锂电池
+                        if real_change > 0.02 * total_resistance and real_change > 0.02:  # 从0.1降到0.02
+                            rsei_value = real_change
+                            rct_value = total_resistance - rsei_value
+                            self.logger.debug(f"简化算法检测到Rsei: {rsei_value:.3f}mΩ")
+                    else:
+                        # 新增备用方案，使用中频区域
+                        mid_freq_indices = [i for i, f in enumerate(frequencies) if 10 <= f <= 100]
+                        if len(mid_freq_indices) >= 2:
+                            mid_freq_real = [real_parts[i] for i in mid_freq_indices]
+                            real_change = max(mid_freq_real) - min(mid_freq_real)
+                            if real_change > 0.01 * total_resistance and real_change > 0.01:
+                                rsei_value = real_change
+                                rct_value = total_resistance - rsei_value
+                                self.logger.debug(f"简化算法使用中频检测到Rsei: {rsei_value:.3f}mΩ")
+
+                # 新增如果仍然没有检测到Rsei，使用经验公式
+                if rsei_value == 0.0 and total_resistance > 0.5:
+                    estimated_rsei = total_resistance * 0.15  # 15%经验值
+                    if estimated_rsei >= 0.05:
+                        rsei_value = estimated_rsei
+                        rct_value = total_resistance - rsei_value
+                        self.logger.debug(f"简化算法使用经验公式计算Rsei: {rsei_value:.3f}mΩ")
+
+                # 构造与完整版算法兼容的结果
+                result = {
+                    'Rs_mohm': rs_value,
+                    'Rct_mohm': rct_value,
+                    'Rsei_mohm': rsei_value,
+                    'W_coefficient_mohm_s05': 0.0,
+                    'has_warburg_diffusion': False,
+                    'f_characteristic_hz': 0.0,
+                    'max_phase_angle_deg': 0.0,
+                    'double_layer_capacitance_mf': 0.0,
+                    'sei_capacitance_mf': 0.0,
+                    'total_capacitance_mf': 0.0,
+                    'tau_main_ms': 0.0,
+                    'tau_sei_ms': 0.0,
+                    'diffusion_time_constant_s': 0.0,
+                    'health_status': 'good',
+                    'health_score': 85.0,
+                    'rs_contribution_percent': 0.0,
+                    'sei_contribution_percent': 0.0,
+                    'ct_contribution_percent': 0.0
+                }
+
+                self.logger.info(f"✅ 完整版EIS分析成功: {cell_id}")
+
+                # 修复正确映射完整版算法的字段名称
+                rs_value = result.get('Rs_mohm', 0.0)
+                rct_value = result.get('Rct_mohm', 0.0)
+                rsei_value = result.get('Rsei_mohm', 0.0)
+
+                # 新增计算阻抗比 Rp/Rs，其中 Rp = Rsei + Rct
+                rp_value = rsei_value + rct_value  # 极化电阻
+                impedance_ratio = rp_value / rs_value if rs_value > 0 else 0.0
+
+                enhanced_result = {
+                    'analysis_success': True,
+                    'analysis_method': 'complete_enhanced',
+                    'rs_value': rs_value,
+                    'rct_value': rct_value,
+                    'rsei_value': rsei_value,
+                    'impedance_ratio': impedance_ratio,  # 新增阻抗比 Rp/Rs
+                    'warburg_coefficient': result.get('W_coefficient_mohm_s05', 0.0),
+                    'warburg_detected': result.get('has_warburg_diffusion', False),
+                    'characteristic_frequency': result.get('f_characteristic_hz', 0.0),
+                    'max_phase_angle': result.get('max_phase_angle_deg', 0.0),
+                    'cell_id': cell_id,
+                    'data_points': len(frequencies),
+                    # 修复使用正确的字段名称映射完整版EIS参数
+                    'double_layer_capacitance_mf': result.get('double_layer_capacitance_mf', 0.0),
+                    'sei_capacitance_mf': result.get('sei_capacitance_mf', 0.0),
+                    'total_capacitance_mf': result.get('total_capacitance_mf', 0.0),
+                    'tau_main_ms': result.get('tau_main_ms', 0.0),
+                    'tau_sei_ms': result.get('tau_sei_ms', 0.0),
+                    'diffusion_time_constant_s': result.get('diffusion_time_constant_s', 0.0),
+                    'health_status': result.get('health_status', 'unknown'),
+                    'health_score': result.get('health_score', 0.0),
+                    'rs_contribution_percent': result.get('rs_contribution_percent', 0.0),
+                    'rsei_contribution_percent': result.get('sei_contribution_percent', 0.0),  # 修复字段名
+                    'rct_contribution_percent': result.get('ct_contribution_percent', 0.0),   # 修复字段名
+                    'complete_analysis_result': result  # 保存完整结果
+                }
+
+                self.logger.info(f"✅ 完整版EIS分析成功: {cell_id}")
+                self.logger.info(f"   双电层电容: {enhanced_result['double_layer_capacitance_mf']:.3f} mF")
+                self.logger.info(f"   SEI电容: {enhanced_result['sei_capacitance_mf']:.3f} mF")
+                self.logger.info(f"   健康状态: {enhanced_result['health_status']} ({enhanced_result['health_score']:.0f}分)")
+
+                return enhanced_result
+
+            except Exception as complete_error:
+                self.logger.warning(f"集成EIS算法计算失败，使用备用方法: {complete_error}")
+
+                # 备用简化计算
+                real_array = np.array(real_parts)
+                rs_value = np.min(real_array)
+                total_resistance = np.max(real_array) - rs_value
+                rsei_value = 0.0
+                rct_value = total_resistance
+
+                # 构造基础结果
+                result = {
+                    'Rs_mohm': rs_value,
+                    'Rct_mohm': rct_value,
+                    'Rsei_mohm': rsei_value,
+                    'W_coefficient_mohm_s05': 0.0,
+                    'has_warburg_diffusion': False,
+                    'f_characteristic_hz': 0.0,
+                    'max_phase_angle_deg': 0.0,
+                    'double_layer_capacitance_mf': 0.0,
+                    'sei_capacitance_mf': 0.0,
+                    'total_capacitance_mf': 0.0,
+                    'tau_main_ms': 0.0,
+                    'tau_sei_ms': 0.0,
+                    'diffusion_time_constant_s': 0.0,
+                    'health_status': 'good',
+                    'health_score': 80.0,
+                    'rs_contribution_percent': 0.0,
+                    'sei_contribution_percent': 0.0,
+                    'ct_contribution_percent': 0.0
+                }
+
+                self.logger.info(f"备用EIS算法计算完成: Rs={rs_value:.3f}mΩ, Rct={rct_value:.3f}mΩ")
+
+            # 修复正确映射完整版算法的字段名称
+            rs_value = result.get('Rs_mohm', 0.0)
+            rct_value = result.get('Rct_mohm', 0.0)
+            rsei_value = result.get('Rsei_mohm', 0.0)
+
+            # 新增计算阻抗比 Rp/Rs，其中 Rp = Rsei + Rct
+            rp_value = rsei_value + rct_value  # 极化电阻
+            impedance_ratio = rp_value / rs_value if rs_value > 0 else 0.0
+
+            enhanced_result = {
+                'analysis_success': True,
+                'analysis_method': 'integrated_simplified',
+                'rs_value': max(0.0, rs_value),
+                'rct_value': max(0.0, rct_value),
+                'rsei_value': max(0.0, rsei_value),
+                'impedance_ratio': impedance_ratio,  # 新增阻抗比 Rp/Rs
+                'warburg_coefficient': result.get('W_coefficient_mohm_s05', 0.0),
+                'warburg_detected': result.get('has_warburg_diffusion', False),
+                'characteristic_frequency': result.get('f_characteristic_hz', 0.0),
+                'max_phase_angle': result.get('max_phase_angle_deg', 0.0),
+                'cell_id': cell_id,
+                'data_points': len(frequencies),
+                'double_layer_capacitance_mf': result.get('double_layer_capacitance_mf', 0.0),
+                'sei_capacitance_mf': result.get('sei_capacitance_mf', 0.0),
+                'total_capacitance_mf': result.get('total_capacitance_mf', 0.0),
+                'tau_main_ms': result.get('tau_main_ms', 0.0),
+                'tau_sei_ms': result.get('tau_sei_ms', 0.0),
+                'diffusion_time_constant_s': result.get('diffusion_time_constant_s', 0.0),
+                'health_status': result.get('health_status', 'good'),
+                'health_score': result.get('health_score', 80.0),
+                'rs_contribution_percent': result.get('rs_contribution_percent', 0.0),
+                'rsei_contribution_percent': result.get('sei_contribution_percent', 0.0),
+                'rct_contribution_percent': result.get('ct_contribution_percent', 0.0),
+                'complete_analysis_result': result  # 保存完整结果
+            }
+
+            self.logger.info(f"✅ 集成EIS分析成功: {cell_id}")
+            return enhanced_result
+            
+        except Exception as e:
+            self.logger.error(f"Simplified EIS analysis also failed: {e}")
+            return {
+                'analysis_success': False,
+                'error': str(e),
+                'analysis_method': 'failed'
+            }
+
+    def _calculate_fast_mode(self, frequencies: List[float],
+                           real_parts: List[float],
+                           imag_parts: List[float],
+                           cell_id: str) -> Dict:
+        """快速计算模式（已废弃） - 重定向到标准EIS分析器"""
+        try:
+            self.logger.warning(f"快速模式已废弃，重定向到标准EIS分析器: {cell_id}")
+
+            # 统一算法重定向到标准EIS分析器的增强方法
+            return self.eis_analyzer.calculate_rs_rct_enhanced(
+                frequencies, real_parts, imag_parts, cell_id
+            )
+
+            # 修复针对磷酸铁锂电池优化的快速Rsei计算
+            if len(freq_array) > 3:  # 降低频率点要求
+                # 修复改进中频段估算方法
+                try:
+                    # 寻找高频区域（>50Hz）
+                    high_freq_mask = freq_array > 50
+                    if np.any(high_freq_mask):
+                        high_freq_real = real_array[high_freq_mask]
+                        high_freq_change = np.max(high_freq_real) - np.min(high_freq_real)
+                        if high_freq_change > 0.02:  # 降低阈值
+                            rsei_value = high_freq_change
+                        else:
+                            # 备用：使用中频段
+                            mid_indices = len(freq_array) // 3
+                            mid_real = np.mean(real_array[mid_indices:2*mid_indices])
+                            rsei_value = max(0.0, mid_real - rs_value)
+                    else:
+                        # 使用经验比例
+                        rsei_value = rct_value * 0.15  # 调整经验比例
+                except Exception:
+                    rsei_value = rct_value * 0.15  # 经验比例
+            else:
+                rsei_value = rct_value * 0.15  # 经验比例
+
+            # 简化的健康状态评估
+            if rs_value < 20 and rct_value < 20:
+                health_status = "良好"
+            elif rs_value < 30 and rct_value < 30:
+                health_status = "一般"
+            else:
+                health_status = "较差"
+
+            calculation_time = time.time() - start_time
+
+            result = {
+                'analysis_success': True,
+                'rs_value': rs_value,
+                'rct_value': rct_value,
+                'rsei_value': rsei_value,
+                'warburg_coefficient': 0.0,  # 快速模式不计算
+                'health_status': health_status,
+                'calculation_time': calculation_time,
+                'mode': 'fast',
+                'cell_id': cell_id,
+                'analysis_method': 'fast_mode'
+            }
+
+            self.logger.info(f"⚡ 快速EIS分析完成: {cell_id}, Rs={rs_value:.3f}mΩ, "
+                           f"Rct={rct_value:.3f}mΩ, Rsei={rsei_value:.3f}mΩ, "
+                           f"耗时={calculation_time:.3f}秒")
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"快速模式计算失败: {e}")
+            return {
+                'analysis_success': False,
+                'error': str(e),
+                'rs_value': 5.0,
+                'rct_value': 10.0,
+                'rsei_value': 2.0,
+                'warburg_coefficient': 0.0,
+                'health_status': 'Error',
+                'mode': 'fast_fallback',
+                'analysis_method': 'fast_mode_failed'
+            }
+
+    def _generate_cache_key(self, frequencies: List[float],
+                          real_parts: List[float],
+                          imag_parts: List[float]) -> str:
+        """生成缓存键"""
+        try:
+            import hashlib
+            # 使用数据的哈希值作为缓存键
+            data_str = f"{frequencies}{real_parts}{imag_parts}"
+            return hashlib.md5(data_str.encode()).hexdigest()[:16]
+        except:
+            import time
+            return f"fallback_{time.time()}"
+
+    def clear_cache(self):
+        """清空计算缓存"""
+        self.calculation_cache.clear()
+        self.logger.info("🧹 EIS计算缓存已清空")

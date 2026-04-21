@@ -1,0 +1,27 @@
+{
+  "info": {
+    "brand": "宁德时代",
+    "cell_type": "磷酸铁锂",
+    "capacity": 3000,
+    "standard_impedance": 1.0,
+    "sample_name": "测试样本_001",
+    "description": "这是一个测试样本"
+  },
+  "median_data": {
+    "1": {
+      "1000.0": {
+        "real": 500,
+        "imag": 300,
+        "z_value": 583.1
+      },
+      "500.0": {
+        "real": 600,
+        "imag": 400,
+        "z_value": 721.1
+      }
+    }
+  },
+  "created_at": "2025-06-01T04:57:18.850353",
+  "threshold": 10.0,
+  "mode": "固定通道号模式"
+}

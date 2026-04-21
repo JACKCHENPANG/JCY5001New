@@ -1,0 +1,1227 @@
+# -*- coding: utf-8 -*-
+"""
+测试控制组件
+包含开始/停止按钮、统计清理、导出数据、设置等控制功能
+
+Author: Jack
+Date: 2025-01-27
+"""
+
+import os
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+    QGroupBox, QMessageBox, QFrame, QLabel
+)
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont, QIcon
+import logging
+
+logger = logging.getLogger(__name__)
+
+from utils.config_manager import ConfigManager
+
+
+class TestControlWidget(QWidget):
+    """测试控制组件"""
+
+    # 信号定义
+    start_test = pyqtSignal()  # 开始测试信号
+    stop_test = pyqtSignal()  # 停止测试信号
+    clear_statistics = pyqtSignal()  # 清理统计信号
+    export_data = pyqtSignal()  # 导出数据信号
+    open_settings = pyqtSignal()  # 打开设置信号
+
+    def __init__(self, config_manager: ConfigManager, parent=None):
+        """
+        初始化测试控制组件
+
+        Args:
+            config_manager: 配置管理器
+            parent: 父窗口
+        """
+        super().__init__(parent)
+
+        self.config_manager = config_manager
+        self.is_testing = False
+
+        # 初始化界面
+        self._init_ui()
+
+        logger.debug("测试控制组件初始化完成")
+
+    def _init_ui(self):
+        """初始化用户界面"""
+        # 创建主布局
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(5)
+
+        # 创建分组框
+        group_box = QGroupBox("测试控制")
+        group_box.setObjectName("controlGroup")
+        main_layout.addWidget(group_box)
+
+        # 创建内容布局
+        content_layout = QVBoxLayout(group_box)
+        content_layout.setContentsMargins(10, 15, 10, 10)
+        content_layout.setSpacing(10)
+
+        # 创建测试模式状态显示框
+        self._create_test_mode_status_display(content_layout)
+
+        # 创建连续测试状态指示器
+        self._create_continuous_status_indicator(content_layout)
+
+        # 创建控制按钮
+        self._create_control_buttons(content_layout)
+
+        # 设置组件样式
+        self._apply_styles()
+
+    def _create_test_mode_status_display(self, layout):
+        """创建测试模式状态显示框（简洁版）"""
+
+        # 测试模式状态容器（简洁版）
+        mode_status_container = QFrame()
+        mode_status_container.setObjectName("testModeStatusContainer")
+
+        mode_status_layout = QHBoxLayout(mode_status_container)
+        mode_status_layout.setContentsMargins(6, 4, 6, 4)  # 减小边距
+        mode_status_layout.setSpacing(6)  # 减小间距
+
+        # 测试模式状态显示（简洁版，不显示"当前模式:"标题）
+        self.test_mode_status_label = QLabel("手动模式")
+        self.test_mode_status_label.setObjectName("testModeStatusLabel")
+        mode_status_layout.addWidget(self.test_mode_status_label)
+
+        # 弹性空间
+        mode_status_layout.addStretch()
+
+        layout.addWidget(mode_status_container)
+
+        # 保存引用
+        self.test_mode_status_container = mode_status_container
+
+        # 初始化状态显示
+        self._update_test_mode_status()
+
+    def _create_continuous_status_indicator(self, layout):
+        """创建连续测试状态指示器"""
+
+        # 连续测试状态容器
+        status_container = QFrame()
+        status_container.setObjectName("continuousStatusContainer")
+        status_container.setVisible(False)  # 默认隐藏
+
+        status_layout = QHBoxLayout(status_container)
+        status_layout.setContentsMargins(8, 6, 8, 6)
+        status_layout.setSpacing(8)
+
+        # 状态指示器
+        self.continuous_status_label = QLabel("🔄 连续测试模式")
+        self.continuous_status_label.setObjectName("continuousStatusLabel")
+        status_layout.addWidget(self.continuous_status_label)
+
+        # 测试计数显示
+        self.test_count_label = QLabel("当前: 0 次")
+        self.test_count_label.setObjectName("testCountLabel")
+        status_layout.addWidget(self.test_count_label)
+
+        # 弹性空间
+        status_layout.addStretch()
+
+        # 停止连续测试按钮
+        self.stop_continuous_button = QPushButton("停止连续测试")
+        self.stop_continuous_button.setObjectName("stopContinuousButton")
+        self.stop_continuous_button.setMinimumHeight(20)  # 减少最小高度以适配14%布局空间
+        self.stop_continuous_button.clicked.connect(self._on_stop_continuous_clicked)
+        status_layout.addWidget(self.stop_continuous_button)
+
+        layout.addWidget(status_container)
+
+        # 保存引用
+        self.continuous_status_container = status_container
+
+    def _create_control_buttons(self, layout):
+        """创建控制按钮"""
+        # 第一行按钮：开始测试 + 统计清理 水平并排
+        first_row_layout = QHBoxLayout()
+        first_row_layout.setSpacing(8)  # 设置按钮间距
+
+        # 开始/停止测试按钮
+        self.start_stop_button = QPushButton("开始测试")
+        self.start_stop_button.setObjectName("startButton")
+        self.start_stop_button.setMinimumHeight(35)  # 减少最小高度以适配12%布局空间
+        self.start_stop_button.clicked.connect(self._on_start_stop_clicked)
+        first_row_layout.addWidget(self.start_stop_button)
+
+        # 统计清理按钮
+        self.clear_button = QPushButton("统计清理")
+        self.clear_button.setObjectName("warningButton")
+        self.clear_button.setMinimumHeight(35)  # 与开始测试按钮保持相同高度
+        self.clear_button.clicked.connect(self._on_clear_clicked)
+        first_row_layout.addWidget(self.clear_button)
+
+        # 将第一行按钮布局添加到主布局
+        first_row_widget = QWidget()
+        first_row_widget.setLayout(first_row_layout)
+        layout.addWidget(first_row_widget)
+
+        # 第二行按钮：数据分析 + 设置 水平并排
+        second_row_layout = QHBoxLayout()
+        second_row_layout.setSpacing(8)  # 设置按钮间距
+
+        # 数据分析按钮
+        self.export_button = QPushButton("数据分析")
+        self.export_button.setMinimumHeight(28)  # 减少最小高度以适配12%布局空间
+        self.export_button.clicked.connect(self._on_export_clicked)
+        second_row_layout.addWidget(self.export_button)
+
+        # 设置按钮
+        self.settings_button = QPushButton("设置")
+        self.settings_button.setMinimumHeight(28)  # 减少最小高度以适配12%布局空间
+        self.settings_button.clicked.connect(self._on_settings_clicked)
+        second_row_layout.addWidget(self.settings_button)
+
+        # 将第二行按钮布局添加到主布局
+        second_row_widget = QWidget()
+        second_row_widget.setLayout(second_row_layout)
+        layout.addWidget(second_row_widget)
+
+        # 添加弹性空间
+        layout.addStretch()
+
+    def _apply_styles(self):
+        """应用样式"""
+        self.setStyleSheet("""
+            QGroupBox#controlGroup {
+                font-weight: bold;
+                border: 2px solid #e74c3c;
+                border-radius: 5px;
+                margin-top: 0.2ex;  /* 进一步压缩优化：从1ex减少到0.2ex */
+                padding-top: 2px;   /* 进一步压缩优化：从10px减少到2px */
+                background-color: white;
+            }
+
+            QGroupBox#controlGroup::title {
+                subcontrol-origin: margin;
+                left: 5px;          /* 进一步压缩优化：从10px减少到5px */
+                padding: 0 3px 0 3px;  /* 进一步压缩优化：从8px减少到3px */
+                color: #e74c3c;
+                font-size: 9pt;     /* 进一步压缩优化：从11pt减少到9pt */
+            }
+
+            QPushButton {
+                background-color: #3498db;
+                border: none;
+                color: white;
+                padding: 6px 12px;  /* 进一步压缩优化：从8px 16px减少到6px 12px */
+                border-radius: 4px;  /* 进一步压缩优化：从6px减少到4px */
+                font-weight: bold;
+                font-size: 12pt;    /* 保持12pt字体大小不变 */
+                min-width: 90px;    /* 进一步压缩优化：从100px减少到90px */
+            }
+
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+                color: #7f8c8d;
+            }
+
+            QPushButton#startButton {
+                background-color: #27ae60;
+                font-size: 12pt;
+            }
+
+            QPushButton#startButton:hover {
+                background-color: #229954;
+            }
+
+            QPushButton#startButton:pressed {
+                background-color: #1e8449;
+            }
+
+            QPushButton#stopButton {
+                background-color: #e74c3c;
+                font-size: 12pt;
+            }
+
+            QPushButton#stopButton:hover {
+                background-color: #c0392b;
+            }
+
+            QPushButton#stopButton:pressed {
+                background-color: #a93226;
+            }
+
+            QPushButton#warningButton {
+                background-color: #f39c12;
+            }
+
+            QPushButton#warningButton:hover {
+                background-color: #e67e22;
+            }
+
+            QPushButton#warningButton:pressed {
+                background-color: #d35400;
+            }
+
+            QFrame {
+                color: #bdc3c7;
+            }
+
+            QFrame#continuousStatusContainer {
+                background-color: #e8f5e8;
+                border: 2px solid #27ae60;
+                border-radius: 6px;
+                margin: 2px;
+                min-height: 40px;
+                max-height: 60px;
+            }
+
+            QLabel#continuousStatusLabel {
+                color: #27ae60;
+                font-weight: bold;
+                font-size: 11pt;
+            }
+
+            QLabel#testCountLabel {
+                color: #2c3e50;
+                font-weight: bold;
+                font-size: 10pt;
+            }
+
+            QPushButton#stopContinuousButton {
+                background-color: #e74c3c;
+                font-size: 12pt;
+                min-width: 80px;
+                padding: 4px 8px;
+            }
+
+            QPushButton#stopContinuousButton:hover {
+                background-color: #c0392b;
+            }
+
+            QPushButton#stopContinuousButton:pressed {
+                background-color: #a93226;
+            }
+
+            QFrame#testModeStatusContainer {
+                background-color: #f0f8ff;
+                border: 1px solid #87ceeb;
+                border-radius: 4px;
+                margin: 1px;
+                min-height: 24px;
+                max-height: 32px;
+            }
+
+            QLabel#testModeStatusLabel {
+                color: #1e90ff;
+                font-weight: normal;
+                font-size: 12pt;
+                padding: 2px 4px;
+            }
+        """)
+
+    def _on_start_stop_clicked(self):
+        """开始/停止按钮点击处理"""
+        try:
+            # 处理开始/停止按钮点击
+            logger.debug(f"开始/停止按钮点击: is_testing={self.is_testing}")
+
+            if not self.is_testing:
+                # 开始测试
+                logger.info("用户点击开始测试")
+                self._start_test()
+            else:
+                # 停止测试
+                logger.info("🛑 用户点击停止测试")
+                self._stop_test()
+
+        except Exception as e:
+            logger.error(f"开始/停止测试失败: {e}")
+            QMessageBox.critical(self, "错误", f"操作失败: {e}")
+
+    def _start_test(self):
+        """开始测试"""
+        try:
+            # 检查授权状态
+            if not self._check_authorization():
+                return
+
+            # 检查配置
+            if not self._validate_test_config():
+                return
+
+            # 🔧 新增：自动下发设备参数
+            if not self._auto_configure_device_parameters():
+                return
+
+            # 更新状态
+            self.is_testing = True
+            self.start_stop_button.setText("停止测试")
+            self.start_stop_button.setObjectName("stopButton")
+            self.start_stop_button.setStyleSheet("")  # 重新应用样式
+
+            # 禁用其他按钮
+            self.clear_button.setEnabled(False)
+            self.settings_button.setEnabled(False)
+
+            # 更新测试模式状态显示
+            self._update_test_mode_status()
+
+            # 检查连续测试模式并显示状态指示器
+            continuous_mode = self.config_manager.get('test.continuous_mode', False)
+            if continuous_mode:
+                self.set_continuous_test_status(True, 0)
+                logger.info("连续测试模式已启用，显示状态指示器")
+
+            # 🔧 修复：检查电池检测模式并激活
+            auto_detect = self.config_manager.get('test.auto_detect', True)
+            if auto_detect and not continuous_mode:
+                # 激活电池检测模式
+                main_window = self._get_main_window()
+                if main_window and hasattr(main_window, '_battery_detection_active'):
+                    main_window._battery_detection_active = True
+                    logger.info("✅ 电池检测模式已激活，后续插入电池将自动启动测试")
+
+            # 发送开始测试信号
+            self.start_test.emit()
+
+            logger.info("测试已开始")
+
+        except Exception as e:
+            logger.error(f"开始测试失败: {e}")
+            raise
+
+    def _get_main_window(self):
+        """获取主窗口引用"""
+        try:
+            # 🔧 修复：增强主窗口查找逻辑
+            main_window = self.parent()
+            search_depth = 0
+            max_depth = 10  # 防止无限循环
+
+            while main_window and search_depth < max_depth:
+                logger.debug(f"🔍 搜索主窗口 深度{search_depth}: {type(main_window).__name__}")
+
+                # 检查是否是主窗口（通过类名或属性判断）
+                if (hasattr(main_window, '_battery_detection_active') or
+                    type(main_window).__name__ == 'MainWindow' or
+                    hasattr(main_window, 'battery_detection_manager')):
+                    logger.debug(f"✅ 找到主窗口: {type(main_window).__name__}")
+                    return main_window
+
+                main_window = main_window.parent()
+                search_depth += 1
+
+            logger.warning(f"⚠️ 未找到主窗口，搜索深度: {search_depth}")
+            return None
+
+        except Exception as e:
+            logger.error(f"获取主窗口失败: {e}")
+            return None
+
+    def _check_authorization(self) -> bool:
+        """检查授权状态"""
+        try:
+            # 获取主窗口的授权管理器
+            main_window = self.parent()
+            while main_window and not hasattr(main_window, 'authorization_manager'):
+                main_window = main_window.parent()
+
+            if main_window and hasattr(main_window, 'authorization_manager'):
+                auth_manager = main_window.authorization_manager
+                license_status = auth_manager.get_license_status()
+
+                # 检查授权是否有效
+                if not license_status.get('is_valid', False):
+                    # 试用期已到期且未授权
+                    if license_status.get('is_expired', True):
+                        QMessageBox.warning(
+                            self,
+                            "软件试用期已到期",
+                            "软件试用期已到期，测试功能已被禁用。\n\n请点击右上角的\"解锁\"按钮输入解锁码以继续使用测试功能。\n\n如需购买授权，请联系软件供应商。"
+                        )
+
+                        # 触发解锁对话框
+                        auth_manager.handle_unlock_requested()
+                        return False
+                    else:
+                        QMessageBox.warning(
+                            self,
+                            "软件授权无效",
+                            "软件授权验证失败，无法使用测试功能。\n\n请联系软件供应商获取有效授权。"
+                        )
+                        return False
+
+                # 检查测试功能是否启用
+                enabled_features = license_status.get('enabled_features', [])
+                if 'basic_test' not in enabled_features:
+                    QMessageBox.warning(
+                        self,
+                        "测试功能未授权",
+                        "当前授权不包含测试功能。\n\n请联系软件供应商升级授权。"
+                    )
+                    return False
+
+                return True
+            else:
+                # 未找到授权管理器，允许测试（向后兼容）
+                return True
+
+        except Exception as e:
+            logger.error(f"检查授权状态失败: {e}")
+            QMessageBox.critical(
+                self,
+                "授权检查失败",
+                f"无法验证软件授权状态：{str(e)}\n\n请重启软件后重试。"
+            )
+            return False
+
+    def set_test_buttons_enabled(self, enabled: bool):
+        """设置测试按钮启用状态（用于授权控制）"""
+        try:
+            self.start_stop_button.setEnabled(enabled)
+            if not enabled:
+                self.start_stop_button.setText("测试已禁用")
+                self.start_stop_button.setToolTip("软件试用期已到期，请解锁后使用测试功能")
+            else:
+                self.start_stop_button.setText("开始测试" if not self.is_testing else "停止测试")
+                self.start_stop_button.setToolTip("")
+
+        except Exception as e:
+            logger.error(f"设置测试按钮状态失败: {e}")
+
+    def _stop_test(self):
+        """停止测试"""
+        try:
+            # 更新状态
+            self.is_testing = False
+            self.start_stop_button.setText("开始测试")
+            self.start_stop_button.setObjectName("startButton")
+            self.start_stop_button.setStyleSheet("")  # 重新应用样式
+
+            # 启用其他按钮
+            self.clear_button.setEnabled(True)
+            self.settings_button.setEnabled(True)
+
+            # 修复状态指示器显示逻辑：停止测试时不隐藏连续测试状态指示器
+            # 只有在连续测试模式关闭时才隐藏状态指示器
+            continuous_mode = self.config_manager.get('test.continuous_mode', False)
+            auto_detect = self.config_manager.get('test.auto_detect', True)
+
+            if continuous_mode:
+                # 连续测试模式仍然启用，保持状态指示器显示
+                logger.info("连续测试模式仍启用，保持状态指示器显示")
+            else:
+                # 连续测试模式已关闭，隐藏状态指示器
+                self.set_continuous_test_status(False)
+                logger.info("连续测试模式已关闭，隐藏状态指示器")
+
+            # 🔧 修复：只有用户手动停止时才停用电池检测模式
+            # 这里不应该停用电池检测模式，因为_stop_test可能被测试完成时调用
+            # 电池检测模式的停用应该只在用户手动点击停止按钮时进行
+            if auto_detect and not continuous_mode:
+                # 检查是否为用户手动停止（通过按钮状态判断）
+                if self.start_stop_button.text() == "停止测试":
+                    # 用户手动停止，停用电池检测模式
+                    main_window = self._get_main_window()
+                    if main_window and hasattr(main_window, '_battery_detection_active'):
+                        main_window._battery_detection_active = False
+                        logger.info("✅ 用户手动停止：电池检测模式已停用")
+                else:
+                    # 测试完成自动调用，不停用电池检测模式
+                    logger.info("🔧 测试完成自动调用：保持电池检测模式激活状态")
+
+            # 发送停止测试信号
+            self.stop_test.emit()
+
+            logger.info("测试已停止")
+
+        except Exception as e:
+            logger.error(f"停止测试失败: {e}")
+            raise
+
+    def _on_stop_continuous_clicked(self):
+        """停止连续测试按钮点击处理"""
+        try:
+            # 修复停止连续测试逻辑：关闭连续测试模式而不是直接隐藏状态指示器
+            # 1. 关闭连续测试模式配置
+            self.config_manager.set('test.continuous_mode', False)
+
+            # 2. 隐藏连续测试状态指示器
+            self.set_continuous_test_status(False)
+
+            # 3. 更新测试模式状态显示
+            self._update_test_mode_status()
+
+            # 4. 停止当前测试
+            if self.is_testing:
+                self._stop_test()
+
+            logger.info("用户手动停止连续测试模式")
+
+        except Exception as e:
+            logger.error(f"停止连续测试失败: {e}")
+
+    def _validate_test_config(self) -> bool:
+        """
+        验证测试配置
+
+        Returns:
+            配置是否有效
+        """
+        try:
+            # 检查批次信息
+            batch_number = self.config_manager.get('batch_info.batch_number', '')
+            if not batch_number or batch_number == "未设置":
+                QMessageBox.warning(
+                    self, "配置检查",
+                    "请先在设置中配置批次号！"
+                )
+                return False
+
+            # 检查操作员
+            operator = self.config_manager.get('batch_info.operator', '')
+            if not operator or operator == "未设置":
+                QMessageBox.warning(
+                    self, "配置检查",
+                    "请先在设置中配置操作员信息！"
+                )
+                return False
+
+            # 检查设备连接（这里暂时跳过，后续集成时实现）
+            # device_connected = self.config_manager.get('device.connected', False)
+            # if not device_connected:
+            #     QMessageBox.warning(
+            #         self, "设备检查",
+            #         "设备未连接，请检查设备连接状态！"
+            #     )
+            #     return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"验证测试配置失败: {e}")
+            QMessageBox.critical(self, "错误", f"配置验证失败: {e}")
+            return False
+
+    def _auto_configure_device_parameters(self) -> bool:
+        """
+        自动下发参数配置（电阻档位、增益、平均次数）
+        
+        Returns:
+            是否配置成功
+        """
+        try:
+            logger.info("🔧 开始自动下发参数配置...")
+            
+            # 🔧 修复：直接从参数配置读取并下发，不使用设备配置管理器
+            # 构建参数配置
+            params_config = self._build_params_config()
+            
+            logger.info(f"🔧 构建的参数配置: {params_config}")
+            
+            # 这里可以添加实际的参数下发逻辑
+            # 目前只是记录日志，实际下发由其他组件处理
+            logger.info("✅ 参数配置已准备完成，等待下发")
+            
+            return True
+                
+        except Exception as e:
+            logger.error(f"自动下发参数配置失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            QMessageBox.critical(self, "配置错误", f"参数配置过程中发生错误：\n{e}")
+            return False
+    
+    def _build_params_config(self) -> dict:
+        """
+        构建参数配置（电阻档位、增益、平均次数）
+        
+        Returns:
+            参数配置字典
+        """
+        try:
+            # 🔧 修复：从正确的配置路径读取参数配置
+            # 增益配置 - 从test_params节点读取
+            gain = self.config_manager.get('test_params.gain', '1')
+            if gain == 'auto':
+                gain = '1'  # 自动模式默认为1倍增益
+            
+            # 平均次数配置 - 从test_params节点读取
+            average_times = self.config_manager.get('test_params.average_times', 1)
+            
+            # 🔧 修复：电阻档位配置 - 直接从test_params.resistance_range读取
+            resistance_range = self.config_manager.get('test_params.resistance_range', '5R')
+            
+            params_config = {
+                'gain': gain,
+                'average_times': average_times,
+                'resistance_range': resistance_range
+            }
+            
+            logger.info(f"🔧 从设置中读取的参数配置: {params_config}")
+            return params_config
+            
+        except Exception as e:
+            logger.error(f"构建参数配置失败: {e}")
+            # 返回默认配置
+            return {
+                'gain': '1',
+                'average_times': 1,
+                'resistance_range': '5R'
+            }
+
+    def _build_test_config_for_device(self) -> dict:
+        """
+        构建用于设备配置的测试配置（已废弃，保留用于兼容性）
+        
+        Returns:
+            测试配置字典
+        """
+        try:
+            # 🔧 修复：从正确的配置路径读取设备参数（根据实际配置文件结构）
+            # 增益配置 - 从test_params节点读取
+            gain = self.config_manager.get('test_params.gain', '1')
+            if gain == 'auto':
+                gain = '1'  # 自动模式默认为1倍增益
+            
+            # 平均次数配置 - 从test_params节点读取
+            average_times = self.config_manager.get('test_params.average_times', 1)
+            
+            # 电阻档位配置 - 从test_params节点读取
+            resistance_range = self.config_manager.get('test_params.resistance_range', '5R')
+            
+            # 频率配置 - 从frequency节点读取
+            frequency_mode = self.config_manager.get('frequency.mode', 'multi')
+            if frequency_mode == 'single':
+                single_freq = self.config_manager.get('frequency.single_freq', 1007.0827)
+                frequencies = [single_freq]
+            else:
+                # 多频点模式，从custom_list读取
+                frequencies = self.config_manager.get('frequency.multi_freq.custom_list', [])
+            
+            # 启用的通道 - 从test节点读取
+            enabled_channels = self.config_manager.get('test.enabled_channels', list(range(1, 9)))
+            
+            test_config = {
+                'gain': gain,
+                'average_times': average_times,
+                'resistance_range': resistance_range,
+                'frequencies': frequencies,
+                'enabled_channels': enabled_channels
+            }
+            
+            logger.info(f"🔧 从设置中读取的设备配置: {test_config}")
+            return test_config
+            
+        except Exception as e:
+            logger.error(f"构建测试配置失败: {e}")
+            # 返回默认配置
+            return {
+                'gain': '1',
+                'average_times': 1,
+                'resistance_range': '5R',
+                'frequencies': [],
+                'enabled_channels': list(range(1, 9))
+            }
+    
+    def _get_resistance_range_from_battery_range(self) -> str:
+        """
+        根据电池档位配置获取设备电阻档位
+        
+        Returns:
+            设备电阻档位字符串
+        """
+        try:
+            battery_range = self.config_manager.get('test_params.battery_range', '10mΩ以下')
+            
+            # 定义映射关系
+            battery_to_device_map = {
+                '1mΩ以下': '1R',   # 1mΩ以内 → 1R档位
+                '10mΩ以下': '5R',  # 10mΩ以内 → 5R档位
+                '100mΩ以下': '10R' # 100mΩ以内 → 10R档位
+            }
+            
+            resistance_range = battery_to_device_map.get(battery_range, '5R')
+            logger.debug(f"🔧 电池档位映射: {battery_range} -> {resistance_range}")
+            
+            return resistance_range
+            
+        except Exception as e:
+            logger.error(f"获取电阻档位失败: {e}")
+            return '5R'  # 默认5R档位
+    
+    def _get_enabled_channels(self) -> list:
+        """
+        获取启用的通道列表
+        
+        Returns:
+            启用的通道列表
+        """
+        try:
+            # 从配置中获取启用的通道
+            enabled_channels = []
+            for i in range(1, 9):  # 通道1-8
+                if self.config_manager.get(f'channels.channel_{i}.enabled', True):
+                    enabled_channels.append(i)
+            
+            if not enabled_channels:
+                # 如果没有启用的通道，默认启用所有通道
+                enabled_channels = list(range(1, 9))
+                logger.warning("⚠️ 没有启用的通道，默认启用所有通道")
+            
+            logger.debug(f"🔧 启用的通道: {enabled_channels}")
+            return enabled_channels
+            
+        except Exception as e:
+            logger.error(f"获取启用通道失败: {e}")
+            return list(range(1, 9))  # 默认所有通道
+
+    def _on_clear_clicked(self):
+        """统计清理按钮点击处理"""
+        try:
+            # 确认对话框
+            reply = QMessageBox.question(
+                self, '确认清理',
+                '确定要清理所有统计数据吗？\n此操作不可撤销。',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # 发送清理统计信号
+                self.clear_statistics.emit()
+                logger.info("用户确认清理统计数据")
+
+        except Exception as e:
+            logger.error(f"清理统计数据失败: {e}")
+            QMessageBox.critical(self, "错误", f"清理失败: {e}")
+
+    def _on_export_clicked(self):
+        """导出数据按钮点击处理"""
+        try:
+            # 发送导出数据信号
+            self.export_data.emit()
+            logger.info("用户请求导出数据")
+
+        except Exception as e:
+            logger.error(f"导出数据失败: {e}")
+            QMessageBox.critical(self, "错误", f"导出失败: {e}")
+
+    def _on_settings_clicked(self):
+        """设置按钮点击处理"""
+        try:
+            # 发送打开设置信号
+            self.open_settings.emit()
+            logger.info("用户请求打开设置")
+
+        except Exception as e:
+            logger.error(f"打开设置失败: {e}")
+            QMessageBox.critical(self, "错误", f"打开设置失败: {e}")
+
+
+
+    def set_testing_state(self, is_testing: bool):
+        """
+        设置测试状态（外部调用）
+
+        Args:
+            is_testing: 是否正在测试
+        """
+        # 🔧 修复：在连续测试模式下，不允许外部状态回调停止测试
+        continuous_mode = self.config_manager.get('test.continuous_mode', False)
+
+        if is_testing and not self.is_testing:
+            self._start_test()
+        elif not is_testing and self.is_testing:
+            if continuous_mode:
+                # 连续测试模式下，只更新UI状态，不发送停止信号
+                logger.info("🔧 连续测试模式：忽略外部停止状态，保持测试运行")
+                # 只更新按钮显示，不调用_stop_test()
+                self.is_testing = False
+                self.start_stop_button.setText("停止测试")
+                self.start_stop_button.setObjectName("stopButton")
+                self.start_stop_button.setStyleSheet("")  # 重新应用样式
+            else:
+                # 非连续测试模式，正常停止
+                self._stop_test()
+
+    def reset_button_state_for_continuous_test(self):
+        """重置连续测试完成后的按钮状态（外部调用）"""
+        try:
+            logger.info("🔧 连续测试完成：重置按钮状态")
+
+            # 重置按钮状态为开始测试
+            self.is_testing = False
+            self.start_stop_button.setText("开始测试")
+            self.start_stop_button.setObjectName("startButton")
+            self.start_stop_button.setStyleSheet("")  # 重新应用样式
+
+            # 启用其他按钮
+            self.clear_button.setEnabled(True)
+            self.settings_button.setEnabled(True)
+
+            # 隐藏连续测试状态指示器
+            self.set_continuous_test_status(False)
+
+            logger.info("✅ 连续测试完成：按钮状态已重置")
+
+        except Exception as e:
+            logger.error(f"重置连续测试按钮状态失败: {e}")
+
+    def get_testing_state(self) -> bool:
+        """
+        获取当前测试状态
+
+        Returns:
+            是否正在测试
+        """
+        return self.is_testing
+
+    def on_test_completed(self):
+        """测试完成处理（用于手动模式）"""
+        try:
+            logger.info("🎯 测试控制组件的on_test_completed方法被调用")
+
+            # 获取测试模式配置
+            continuous_test = self.config_manager.get('test.continuous_mode', False)
+            auto_detect = self.config_manager.get('test.auto_detect', True)
+
+            logger.info(f"🔧 测试控制组件检查模式: 连续测试={continuous_test}, 自动侦测={auto_detect}")
+
+            # 判断是否为手动模式（既不是连续测试也不是自动侦测）
+            is_manual_mode = not continuous_test and not auto_detect
+
+            logger.info(f"🎯 测试控制组件模式判断: 手动模式={is_manual_mode}")
+
+            if is_manual_mode:
+                logger.info("✅ 测试控制组件：手动模式，开始重置按钮状态")
+
+                # 手动模式：测试完成后自动停止，显示开始按钮
+                self.is_testing = False
+                self.start_stop_button.setText("开始测试")
+                self.start_stop_button.setObjectName("startButton")
+                self.start_stop_button.setStyleSheet("")  # 重新应用样式
+
+                # 启用其他按钮
+                self.clear_button.setEnabled(True)
+                self.settings_button.setEnabled(True)
+
+                logger.info("✅ 手动模式：测试完成，已切换到开始状态")
+            else:
+                logger.info(f"ℹ️ 测试控制组件：非手动模式，跳过按钮状态重置（连续测试: {continuous_test}, 自动侦测: {auto_detect}）")
+
+                # 🔧 修复：在电池检测模式下，保持按钮为"停止测试"状态
+                if auto_detect and not continuous_test:
+                    logger.info("🔧 电池检测模式：测试完成后保持停止测试状态")
+
+                    # 检查电池检测模式是否激活
+                    main_window = self._get_main_window()
+                    if main_window and hasattr(main_window, '_battery_detection_active') and main_window._battery_detection_active:
+                        # 电池检测模式已激活，保持"停止测试"状态
+                        self.is_testing = False  # 内部状态设为false，但按钮保持停止状态
+                        self.start_stop_button.setText("停止测试")
+                        self.start_stop_button.setObjectName("stopButton")
+                        self.start_stop_button.setStyleSheet("")  # 重新应用样式
+                        logger.info("✅ 电池检测模式：保持停止测试按钮状态")
+
+                        # 🔧 修复：不调用_update_test_mode_status，避免重置按钮状态
+                        # 只更新模式显示文本，不更新按钮状态
+                        self.test_mode_status_label.setText("电池侦测")
+                        logger.info("✅ 电池检测模式：已更新模式显示，保持按钮状态")
+                    else:
+                        # 电池检测模式未激活，正常重置
+                        self.is_testing = False
+                        self._update_test_mode_status()  # 这会设置正确的按钮状态
+                        logger.info("✅ 电池检测模式：未激活，正常重置按钮状态")
+
+                    # 启用其他按钮
+                    self.clear_button.setEnabled(True)
+                    self.settings_button.setEnabled(True)
+
+                    logger.info("✅ 电池检测模式：UI状态已同步")
+
+        except Exception as e:
+            logger.error(f"测试完成处理失败: {e}")
+
+    def set_continuous_test_status(self, is_continuous: bool, test_count: int = 0, max_count: int = 0, interval: float = 0):
+        """
+        设置连续测试状态（增强版）
+
+        Args:
+            is_continuous: 是否为连续测试模式
+            test_count: 已完成的测试次数
+            max_count: 最大测试次数（0表示无限制）
+            interval: 测试间隔时间（秒）
+        """
+        try:
+            # 🔧 修复：添加详细的调试信息
+            logger.info(f"🔧 set_continuous_test_status 调用: is_continuous={is_continuous}, test_count={test_count}, max_count={max_count}, interval={interval}")
+
+            if is_continuous:
+                # 🔧 修复：确保连续测试状态指示器存在
+                if not hasattr(self, 'continuous_status_container'):
+                    logger.error("❌ continuous_status_container 不存在，无法显示连续测试状态")
+                    return
+
+                if not hasattr(self, 'test_count_label'):
+                    logger.error("❌ test_count_label 不存在，无法更新计数显示")
+                    return
+
+                # 显示连续测试状态指示器
+                self.continuous_status_container.setVisible(True)
+                self.continuous_status_container.show()  # 强制显示
+                logger.info(f"✅ 连续测试状态指示器已显示")
+
+                # 更新连续测试状态标签
+                self.continuous_status_label.setText("🔄 连续测试模式")
+
+                # 🔧 修复：更新测试计数显示，添加强制刷新
+                count_text = ""
+                if max_count > 0:
+                    count_text = f"当前: {test_count}/{max_count} 次"
+                else:
+                    count_text = f"当前: {test_count} 次"
+
+                self.test_count_label.setText(count_text)
+
+                # 🔧 修复：强制刷新UI显示
+                self.test_count_label.update()
+                self.continuous_status_container.update()
+
+                logger.info(f"✅ 连续测试计数已更新: {count_text}")
+
+                # 更新间隔时间显示（如果有间隔信息）
+                if interval > 0:
+                    if hasattr(self, 'interval_label'):
+                        self.interval_label.setText(f"间隔: {interval:.1f}秒")
+
+                logger.info(f"🔧 连续测试状态更新完成: {count_text}, 间隔 {interval:.1f}秒")
+            else:
+                # 隐藏连续测试状态指示器
+                if hasattr(self, 'continuous_status_container'):
+                    self.continuous_status_container.setVisible(False)
+                    logger.info("🔧 连续测试状态指示器已隐藏")
+                else:
+                    logger.warning("⚠️ continuous_status_container 不存在，无法隐藏")
+
+        except Exception as e:
+            logger.error(f"设置连续测试状态失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    def _update_test_mode_status(self):
+        """更新测试模式状态显示"""
+        try:
+            # 🔧 修复：检查UI组件是否已初始化
+            if not hasattr(self, 'start_stop_button') or not hasattr(self, 'test_mode_status_label'):
+                logger.debug("UI组件未完全初始化，跳过测试模式状态更新")
+                return
+
+            # 获取配置
+            continuous_test = self.config_manager.get('test.continuous_mode', False)
+            auto_detect = self.config_manager.get('test.auto_detect', True)
+
+            logger.info(f"🔧 更新测试模式状态: 连续测试={continuous_test}, 自动侦测={auto_detect}")
+
+            # 确定当前测试模式（简洁版显示）
+            if continuous_test and not auto_detect:
+                # 连续测试模式（简洁显示）
+                continuous_delay = self.config_manager.get('test.continuous_mode_delay', 2.0)
+                count_limit_enabled = self.config_manager.get('test.count_limit_enabled', False)
+                max_count = self.config_manager.get('test.max_count', 100)
+
+                if count_limit_enabled:
+                    mode_text = f"连续测试 ({continuous_delay:.1f}s, {max_count}次)"
+                else:
+                    mode_text = f"连续测试 ({continuous_delay:.1f}s)"
+
+            elif not continuous_test and auto_detect:
+                # 电池自动侦测模式（简洁显示）
+                mode_text = "电池侦测"
+
+                # 🔧 修复：确保在自动侦测模式下按钮状态正确
+                if not self.is_testing:
+                    # 检查电池检测模式是否已激活
+                    main_window = self._get_main_window()
+                    if main_window and hasattr(main_window, '_battery_detection_active') and main_window._battery_detection_active:
+                        # 电池检测模式已激活，保持"停止测试"状态
+                        self.start_stop_button.setText("停止测试")
+                        self.start_stop_button.setObjectName("stopButton")
+                        self.start_stop_button.setStyleSheet("")  # 重新应用样式
+                        logger.info("✅ 自动侦测模式：电池检测已激活，保持'停止测试'状态")
+                    else:
+                        # 电池检测模式未激活，显示"开始测试"
+                        self.start_stop_button.setText("开始测试")
+                        self.start_stop_button.setObjectName("startButton")
+                        self.start_stop_button.setStyleSheet("")  # 重新应用样式
+                        logger.info("✅ 自动侦测模式：电池检测未激活，显示'开始测试'")
+                elif self.is_testing:
+                    # 🔧 修复：如果正在测试，确保按钮显示为"停止测试"
+                    self.start_stop_button.setText("停止测试")
+                    self.start_stop_button.setObjectName("stopButton")
+                    self.start_stop_button.setStyleSheet("")  # 重新应用样式
+                    logger.debug("✅ 自动侦测模式：正在测试，保持'停止测试'状态")
+
+            elif not continuous_test and not auto_detect:
+                # 手动模式（简洁显示）
+                mode_text = "手动模式"
+
+                # 🔧 修复：确保在手动模式下按钮状态正确
+                if not self.is_testing:
+                    self.start_stop_button.setText("开始测试")
+                    self.start_stop_button.setObjectName("startButton")
+                    self.start_stop_button.setStyleSheet("")  # 重新应用样式
+                    logger.info("✅ 手动模式：按钮状态已同步为'开始测试'")
+
+            else:
+                # 配置冲突（理论上不应该发生）
+                mode_text = "配置冲突"
+                logger.warning("检测到测试模式配置冲突")
+
+            # 更新显示
+            self.test_mode_status_label.setText(mode_text)
+            logger.debug(f"测试模式状态更新: {mode_text}")
+
+        except Exception as e:
+            logger.error(f"更新测试模式状态失败: {e}")
+            if hasattr(self, 'test_mode_status_label'):
+                self.test_mode_status_label.setText("状态获取失败")
+
+    def update_continuous_test_info(self, count: int, max_count: int = 0, status: str = ""):
+        """
+        更新连续测试信息显示
+
+        Args:
+            count: 当前测试次数
+            max_count: 最大测试次数
+            status: 当前状态描述
+        """
+        try:
+            # 更新计数显示
+            if max_count > 0:
+                self.test_count_label.setText(f"已完成: {count}/{max_count} 次")
+            else:
+                self.test_count_label.setText(f"已完成: {count} 次")
+
+            # 更新状态显示（如果有状态标签）
+            if hasattr(self, 'status_label') and status:
+                self.status_label.setText(status)
+
+            logger.debug(f"连续测试信息更新: {count}次, 状态: {status}")
+
+        except Exception as e:
+            logger.error(f"更新连续测试信息失败: {e}")
+
+    def update_test_count(self, count: int):
+        """
+        更新测试计数显示
+
+        Args:
+            count: 测试次数
+        """
+        try:
+            self.test_count_label.setText(f"已完成: {count} 次")
+
+        except Exception as e:
+            logger.error(f"更新测试计数失败: {e}")
+
+    def update_continuous_test_count(self, current_count: int, max_count: int = 0):
+        """
+        更新连续测试计数显示（用于外部调用）
+
+        Args:
+            current_count: 当前已完成的测试次数
+            max_count: 最大测试次数（0表示无限制）
+        """
+        try:
+            logger.info(f"🔧 update_continuous_test_count 被调用: current_count={current_count}, max_count={max_count}")
+
+            # 检查是否为连续测试模式
+            continuous_test = self.config_manager.get('test.continuous_mode', False)
+            if not continuous_test:
+                logger.warning(f"⚠️ 不是连续测试模式，跳过计数更新")
+                return
+
+            # 🔧 修复：检查UI组件是否存在
+            if not hasattr(self, 'test_count_label') or self.test_count_label is None:
+                logger.error(f"❌ test_count_label 不存在，无法更新计数")
+                return
+
+            if not hasattr(self, 'continuous_status_container') or self.continuous_status_container is None:
+                logger.error(f"❌ continuous_status_container 不存在，无法显示状态")
+                return
+
+            # 🔧 修复：确保连续测试状态指示器可见
+            if not self.continuous_status_container.isVisible():
+                logger.info(f"🔧 连续测试状态指示器不可见，设置为可见")
+                self.continuous_status_container.setVisible(True)
+                self.continuous_status_container.show()  # 强制显示
+
+            # 🔧 修复：更新连续测试状态指示器中的计数显示
+            # 显示当前正在进行的轮次，而不是已完成的轮次
+            count_text = ""
+            if max_count > 0:
+                count_text = f"当前: {current_count}/{max_count} 次"
+            else:
+                count_text = f"当前: {current_count} 次"
+
+            # 更新文本
+            old_text = self.test_count_label.text()
+            self.test_count_label.setText(count_text)
+
+            # 🔧 修复：强制刷新UI显示
+            self.test_count_label.update()
+            self.continuous_status_container.update()
+            self.update()  # 刷新整个组件
+
+            logger.info(f"✅ 连续测试计数显示已更新: '{old_text}' -> '{count_text}'")
+
+            # 更新测试模式状态显示
+            self._update_test_mode_status()
+
+            logger.info(f"🔧 连续测试计数更新完成: 当前第{current_count}轮/{max_count}轮")
+
+        except Exception as e:
+            logger.error(f"更新连续测试计数失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    def load_settings(self):
+        """重新加载设置"""
+        try:
+            # 更新测试模式状态显示
+            self._update_test_mode_status()
+
+            # 检查连续测试模式设置
+            continuous_mode = self.config_manager.get('test.continuous_mode', False)
+            if continuous_mode:
+                # 如果启用了连续测试模式，显示状态指示器
+                # 获取相关配置信息
+                delay = self.config_manager.get('test.continuous_mode_delay', 2.0)
+                count_limit_enabled = self.config_manager.get('test.count_limit_enabled', False)
+                max_count = self.config_manager.get('test.max_count', 100)
+
+                # 显示连续测试状态指示器
+                if count_limit_enabled:
+                    self.set_continuous_test_status(True, 0, max_count, delay)
+                else:
+                    self.set_continuous_test_status(True, 0, 0, delay)
+                logger.info("连续测试模式已启用，显示状态指示器")
+            else:
+                # 连续测试模式已关闭，隐藏状态指示器
+                self.set_continuous_test_status(False)
+                logger.info("连续测试模式已关闭，隐藏状态指示器")
+
+        except Exception as e:
+            logger.error(f"加载设置失败: {e}")

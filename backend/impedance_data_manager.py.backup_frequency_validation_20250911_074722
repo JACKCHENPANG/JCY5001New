@@ -1,0 +1,772 @@
+# -*- coding: utf-8 -*-
+"""
+阻抗数据管理器
+负责阻抗数据的读取、存储、管理和数据库操作
+
+从TestFlowController中提取的阻抗数据管理功能，遵循单一职责原则
+
+Author: Jack
+Date: 2025-01-30
+"""
+
+import logging
+import time
+import sys
+import os
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+class ImpedanceDataManager:
+    """
+    阻抗数据管理器
+    
+    职责：
+    - 阻抗数据读取
+    - 阻抗数据存储和缓存
+    - 数据库操作
+    - 数据格式转换
+    """
+    
+    def __init__(self, comm_manager, config_manager=None):
+        """
+        初始化阻抗数据管理器
+
+        Args:
+            comm_manager: 通信管理器
+            config_manager: 配置管理器（可选，如果不提供会自动创建）
+        """
+        self.comm_manager = comm_manager
+
+        # 修复确保config_manager属性存在
+        if config_manager is not None:
+            self.config_manager = config_manager
+        else:
+            # 如果没有提供，自动创建一个
+            from utils.config_manager import ConfigManager
+            self.config_manager = ConfigManager()
+
+        # 阻抗数据存储：{channel_num: {frequency: {'real': value, 'imag': value}}}
+        self.impedance_data_storage = {}
+        # 为了兼容性，也创建impedance_data属性
+        self.impedance_data = self.impedance_data_storage
+
+        # 电池码存储（用于数据库保存）
+        self.battery_codes = []
+
+        # 新增增强电池码映射（连续测试模式下使用）
+        self.enhanced_battery_codes = {}  # {channel_num: enhanced_battery_code}
+
+        # 数据库管理器（延迟初始化）
+        self._db_manager = None
+
+        # 进度回调函数（用于UI更新）
+        self.progress_callback = None
+
+        # 频点偏差数据存储（用于离群率计算）
+        self.channel_frequency_deviations = {}
+
+        # 新增频点序号映射管理
+        self.frequency_sequence_map = {}  # 频点到序号的映射：{frequency: sequence_number}
+        self.test_frequencies = []  # 当前测试的频点列表（按测试顺序）
+
+        logger.debug("阻抗数据管理器初始化完成")
+    
+    @property
+    def db_manager(self):
+        """延迟初始化数据库管理器"""
+        if self._db_manager is None:
+            try:
+                sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                from data.database_manager import DatabaseManager
+                self._db_manager = DatabaseManager()
+            except Exception as e:
+                logger.error(f"初始化数据库管理器失败: {e}")
+                self._db_manager = None
+        return self._db_manager
+    
+    def read_impedance_data_for_frequency(self, frequency: float, channel_indices: List[int]) -> Dict:
+        """
+        读取指定频率下所有通道的阻抗数据
+        
+        Args:
+            frequency: 测试频率
+            channel_indices: 通道索引列表（0-7）
+            
+        Returns:
+            阻抗数据字典
+        """
+        try:
+            # 读取所有通道的实部和虚部阻抗
+            logger.debug(f"开始读取频率{frequency}Hz的阻抗数据...")
+            real_impedances = self.comm_manager.read_impedance_real()
+            imag_impedances = self.comm_manager.read_impedance_imag()
+
+            # 详细的调试信息
+            logger.debug(f"实部阻抗读取结果: {real_impedances}")
+            logger.debug(f"虚部阻抗读取结果: {imag_impedances}")
+
+            if not real_impedances or not imag_impedances:
+                logger.error(f"读取频率{frequency}Hz阻抗数据失败 - 实部: {real_impedances is not None}, 虚部: {imag_impedances is not None}")
+                # 即使读取失败，也要记录尝试读取的信息
+                logger.debug(f"尝试读取的通道索引: {channel_indices}")
+                return {}
+            
+            # 组织数据
+            impedance_data = {
+                'frequency': frequency,
+                'timestamp': time.time(),
+                'channels': {}
+            }
+            
+            for ch_idx in channel_indices:
+                if ch_idx < len(real_impedances) and ch_idx < len(imag_impedances):
+                    channel_num = ch_idx + 1  # 转换为1基通道号
+                    impedance_data['channels'][channel_num] = {
+                        'real_impedance': real_impedances[ch_idx],  # μΩ
+                        'imaginary_impedance': imag_impedances[ch_idx],  # μΩ
+                        'magnitude': (real_impedances[ch_idx]**2 + imag_impedances[ch_idx]**2)**0.5,
+                        'phase': 0.0  # 可以后续计算
+                    }
+                    
+                    logger.debug(f"通道{channel_num}@{frequency}Hz: Re={real_impedances[ch_idx]:.3f}μΩ, Im={imag_impedances[ch_idx]:.3f}μΩ")
+            
+            return impedance_data
+            
+        except Exception as e:
+            logger.error(f"读取频率{frequency}Hz阻抗数据失败: {e}")
+            return {}
+    
+    def save_impedance_data(self, frequency: float, impedance_data: Dict, batch_id: int):
+        """
+        保存阻抗数据到数据库和内存缓存
+        
+        Args:
+            frequency: 测试频率
+            impedance_data: 阻抗数据
+            batch_id: 批次ID
+        """
+        try:
+            if not self.db_manager:
+                logger.error("数据库管理器未初始化，无法保存数据")
+                return
+            
+            channels_data = impedance_data.get('channels', {})
+            logger.info(f"保存频率{frequency}Hz阻抗数据，通道数: {len(channels_data)}")
+            
+            # 保存每个通道的阻抗数据
+            for channel_num, data in channels_data.items():
+                real_imp = data['real_impedance']
+                imag_imp = data['imaginary_impedance']
+
+                # 计算Z值
+                real_impedance_mohm = real_imp / 1000.0  # 转换为mΩ
+                imag_impedance_mohm = imag_imp / 1000.0  # 转换为mΩ
+                z_value = (real_impedance_mohm**2 + imag_impedance_mohm**2)**0.5  # Z = √(实部² + 虚部²)
+
+                # 🚫 离群检测功能已删除
+                baseline_z_value, deviation_percent, outlier_result = None, None, None
+
+                # 修复获取正确的频点序号
+                test_sequence = self.get_frequency_sequence(frequency)
+
+                # 准备数据库记录
+                impedance_record = {
+                    'batch_id': batch_id,
+                    'channel_number': int(channel_num),
+                    'battery_code': self._get_enhanced_battery_code(int(channel_num)),  # 修复获取增强电池码
+                    'test_timestamp': datetime.now().isoformat(),
+                    'frequency': frequency,
+                    'impedance_real': real_impedance_mohm,  # 已转换为mΩ
+                    'impedance_imag': imag_impedance_mohm,  # 已转换为mΩ
+                    'voltage': self._get_channel_voltage(int(channel_num)),  # 使用真实电压
+                    'test_sequence': test_sequence,  # 使用正确的频点序号
+                    'z_value': round(z_value, 3) if z_value else None,
+                    'baseline_z_value': round(baseline_z_value, 3) if baseline_z_value is not None and isinstance(baseline_z_value, (int, float)) else None,
+                    'deviation_percent': round(deviation_percent, 2) if deviation_percent is not None and isinstance(deviation_percent, (int, float)) else None
+                }
+
+
+                
+                # 保存到数据库
+                self.db_manager.save_impedance_detail(impedance_record)
+                
+                # 同时保存到内存存储，用于EIS分析
+                # 确保channel_num是整数类型
+                channel_num_int = int(channel_num)
+                if channel_num_int not in self.impedance_data_storage:
+                    self.impedance_data_storage[channel_num_int] = {}
+
+                self.impedance_data_storage[channel_num_int][frequency] = {
+                    'real': real_imp,
+                    'imag': imag_imp
+                }
+
+                logger.debug(f"通道{channel_num_int}@{frequency}Hz阻抗数据已保存到内存存储: Re={real_imp:.3f}μΩ, Im={imag_imp:.3f}μΩ")
+                
+                logger.debug(f"通道{channel_num}@{frequency}Hz阻抗数据已保存到数据库和内存")
+                
+        except Exception as e:
+            logger.error(f"保存阻抗数据失败: {e}")
+    
+    def get_channel_impedance_data(self, channel_num: int) -> Dict[float, Dict[str, float]]:
+        """
+        获取指定通道的所有阻抗数据
+        
+        Args:
+            channel_num: 通道号（1-8）
+            
+        Returns:
+            该通道的阻抗数据字典 {frequency: {'real': value, 'imag': value}}
+        """
+        return self.impedance_data_storage.get(channel_num, {})
+    
+    def get_all_impedance_data(self) -> Dict[int, Dict[float, Dict[str, float]]]:
+        """
+        获取所有通道的阻抗数据
+
+        Returns:
+            所有阻抗数据
+        """
+        return self.impedance_data_storage.copy()
+
+    def get_batch_impedance_data(self, channels: List[int] = None) -> Dict[int, Dict[float, Dict[str, float]]]:
+        """
+        批量获取多个通道的阻抗数据
+
+        Args:
+            channels: 要获取的通道列表，如果为None则获取所有通道
+
+        Returns:
+            指定通道的阻抗数据字典
+        """
+        try:
+            if channels is None:
+                # 如果没有指定通道，返回所有通道数据
+                return self.get_all_impedance_data()
+
+            # 确保channels是一个列表
+            if isinstance(channels, int):
+                channels = [channels]
+            elif not isinstance(channels, (list, tuple)):
+                logger.error(f"无效的通道参数类型: {type(channels)}")
+                return {}
+
+            # 获取指定通道的数据
+            batch_data = {}
+            for channel_num in channels:
+                if not isinstance(channel_num, int):
+                    logger.warning(f"无效的通道号类型: {type(channel_num)}")
+                    continue
+
+                if channel_num in self.impedance_data:
+                    batch_data[channel_num] = self.impedance_data[channel_num].copy()
+                else:
+                    logger.warning(f"通道{channel_num}没有阻抗数据")
+                    batch_data[channel_num] = {}
+
+            logger.debug(f"批量获取{len(channels)}个通道的阻抗数据")
+            return batch_data
+
+        except Exception as e:
+            logger.error(f"批量获取阻抗数据失败: {e}")
+            import traceback
+            logger.error(f"详细错误: {traceback.format_exc()}")
+            return {}
+    
+    def clear_impedance_data(self):
+        """清空阻抗数据存储"""
+        self.impedance_data_storage.clear()
+        logger.info("阻抗数据存储已清空")
+    
+    def clear_channel_data(self, channel_num: int):
+        """
+        清空指定通道的阻抗数据
+
+        Args:
+            channel_num: 通道号（1-8）
+        """
+        if channel_num in self.impedance_data_storage:
+            del self.impedance_data_storage[channel_num]
+            logger.info(f"通道{channel_num}阻抗数据已清空")
+
+    def clear_batch_data(self, batch_id: int):
+        """
+        清理指定批次的阻抗数据
+
+        当用户停止测试时，清理当前批次的不完整数据，
+        避免脏数据影响后续分析
+
+        Args:
+            batch_id: 批次ID
+        """
+        try:
+            logger.info(f"🛑 开始清理批次{batch_id}的阻抗数据...")
+
+            # 清理内存中的阻抗数据存储
+            cleared_channels = []
+            for channel_num in list(self.impedance_data_storage.keys()):
+                if self.impedance_data_storage[channel_num]:
+                    del self.impedance_data_storage[channel_num]
+                    cleared_channels.append(channel_num)
+
+            if cleared_channels:
+                logger.info(f"✅ 已清理通道{cleared_channels}的内存阻抗数据")
+
+            # 清理频点偏差数据
+            if hasattr(self, 'channel_frequency_deviations'):
+                self.channel_frequency_deviations.clear()
+                logger.info("✅ 频点偏差数据已清理")
+
+            # 清理增强电池码映射
+            if hasattr(self, 'enhanced_battery_codes'):
+                self.enhanced_battery_codes.clear()
+                logger.info("✅ 增强电池码映射已清理")
+
+            # 注意：不清理数据库中的数据，因为可能有其他完整的测试数据
+            # 只清理内存中的临时数据
+
+            logger.info(f"🛑 批次{batch_id}阻抗数据清理完成")
+
+        except Exception as e:
+            logger.error(f"🛑 清理批次{batch_id}阻抗数据失败: {e}")
+            import traceback
+            logger.error(f"详细错误: {traceback.format_exc()}")
+    
+    def get_impedance_data_summary(self) -> Dict[str, Any]:
+        """
+        获取阻抗数据摘要信息
+        
+        Returns:
+            数据摘要字典
+        """
+        try:
+            summary = {
+                'total_channels': len(self.impedance_data_storage),
+                'channels': {},
+                'frequency_range': {'min': None, 'max': None},
+                'total_data_points': 0
+            }
+            
+            all_frequencies = set()
+            
+            for channel_num, channel_data in self.impedance_data_storage.items():
+                frequencies = list(channel_data.keys())
+                all_frequencies.update(frequencies)
+                
+                summary['channels'][channel_num] = {
+                    'frequency_count': len(frequencies),
+                    'frequency_range': {
+                        'min': min(frequencies) if frequencies else None,
+                        'max': max(frequencies) if frequencies else None
+                    }
+                }
+                summary['total_data_points'] += len(frequencies)
+            
+            if all_frequencies:
+                summary['frequency_range']['min'] = min(all_frequencies)
+                summary['frequency_range']['max'] = max(all_frequencies)
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"获取阻抗数据摘要失败: {e}")
+            return {}
+    
+    def export_impedance_data(self, channel_num: Optional[int] = None) -> Dict[str, Any]:
+        """
+        导出阻抗数据
+        
+        Args:
+            channel_num: 通道号，如果为None则导出所有通道
+            
+        Returns:
+            导出的数据字典
+        """
+        try:
+            if channel_num is not None:
+                # 导出指定通道
+                if channel_num in self.impedance_data_storage:
+                    return {
+                        'channel': channel_num,
+                        'data': self.impedance_data_storage[channel_num],
+                        'export_time': datetime.now().isoformat()
+                    }
+                else:
+                    return {}
+            else:
+                # 导出所有通道
+                return {
+                    'all_channels': self.impedance_data_storage,
+                    'summary': self.get_impedance_data_summary(),
+                    'export_time': datetime.now().isoformat()
+                }
+                
+        except Exception as e:
+            logger.error(f"导出阻抗数据失败: {e}")
+            return {}
+    
+    def _get_actual_battery_code(self, channel_num: int) -> str:
+        """
+        获取实际的电池码（修复电池码保存逻辑）
+
+        Args:
+            channel_num: 通道号（1-8）
+
+        Returns:
+            实际的电池码
+        """
+        try:
+            # 从电池码列表获取
+            if self.battery_codes and len(self.battery_codes) >= channel_num:
+                battery_code = self.battery_codes[channel_num - 1]
+                if battery_code and battery_code.strip():
+                    return battery_code.strip()
+
+            # 使用默认电池码（备用方案）
+            default_code = f'BAT{channel_num:03d}'
+            # 只在第一次使用默认值时记录警告，避免日志过多
+            if not hasattr(self, '_default_battery_code_warned'):
+                self._default_battery_code_warned = set()
+            if channel_num not in self._default_battery_code_warned:
+                logger.warning(f"无法获取通道{channel_num}的实际电池码，使用默认值: {default_code}")
+                self._default_battery_code_warned.add(channel_num)
+            return default_code
+
+        except Exception as e:
+            logger.error(f"获取通道{channel_num}电池码失败: {e}")
+            return f'BAT{channel_num:03d}'
+
+    def _get_enhanced_battery_code(self, channel_num: int) -> str:
+        """
+        获取增强电池码（连续测试模式下优先使用增强码）
+
+        Args:
+            channel_num: 通道号（1-8）
+
+        Returns:
+            增强电池码或原始电池码
+        """
+        try:
+            # 优先使用增强电池码
+            if channel_num in self.enhanced_battery_codes:
+                enhanced_code = self.enhanced_battery_codes[channel_num]
+                logger.debug(f"通道{channel_num}使用增强电池码: {enhanced_code}")
+                return enhanced_code
+
+            # 回退到原始电池码
+            original_code = self._get_actual_battery_code(channel_num)
+            logger.debug(f"通道{channel_num}使用原始电池码: {original_code}")
+            return original_code
+
+        except Exception as e:
+            logger.error(f"获取通道{channel_num}增强电池码失败: {e}")
+            return f'BAT{channel_num:03d}'
+
+    def set_battery_codes(self, battery_codes: List[str]):
+        """
+        设置电池码列表
+
+        Args:
+            battery_codes: 电池码列表
+        """
+        self.battery_codes = battery_codes.copy() if battery_codes else []
+        logger.debug(f"阻抗数据管理器电池码已更新: {len(self.battery_codes)}个")
+
+    def set_enhanced_battery_code(self, channel_num: int, enhanced_battery_code: str):
+        """
+        设置指定通道的增强电池码（连续测试模式下使用）
+
+        Args:
+            channel_num: 通道号
+            enhanced_battery_code: 增强电池码（如 BATTERY001-T001）
+        """
+        self.enhanced_battery_codes[channel_num] = enhanced_battery_code
+        logger.debug(f"通道{channel_num}增强电池码已设置: {enhanced_battery_code}")
+
+    def clear_enhanced_battery_codes(self):
+        """清空所有增强电池码映射"""
+        self.enhanced_battery_codes.clear()
+        logger.debug("增强电池码映射已清空")
+
+    def set_progress_callback(self, callback):
+        """
+        设置进度回调函数
+
+        Args:
+            callback: 回调函数，用于UI更新
+        """
+        self.progress_callback = callback
+        logger.debug("阻抗数据管理器进度回调已设置")
+
+    def set_test_frequencies(self, frequencies: List[float]):
+        """
+        设置测试频点列表并生成序号映射
+
+        Args:
+            frequencies: 测试频点列表（按测试顺序：从高到低）
+        """
+        try:
+            self.test_frequencies = frequencies.copy() if frequencies else []
+            self.frequency_sequence_map.clear()
+
+            # 生成频点到序号的映射（序号从1开始递增）
+            for i, frequency in enumerate(frequencies, 1):
+                self.frequency_sequence_map[frequency] = i
+
+            logger.info(f"测试频点序号映射已设置: {len(frequencies)}个频点")
+
+        except Exception as e:
+            logger.error(f"设置测试频点失败: {e}")
+
+    def get_frequency_sequence(self, frequency: float) -> int:
+        """
+        获取指定频点的序号
+
+        Args:
+            frequency: 频点值
+
+        Returns:
+            序号（从1开始），如果未找到则返回1
+        """
+        try:
+            # 直接查找精确匹配
+            if frequency in self.frequency_sequence_map:
+                return self.frequency_sequence_map[frequency]
+
+            # 如果没有精确匹配，查找最接近的频点
+            if self.test_frequencies:
+                closest_freq = min(self.test_frequencies, key=lambda f: abs(f - frequency))
+                tolerance = max(frequency * 0.01, 0.001)  # 1%容差或最小0.001Hz
+
+                if abs(closest_freq - frequency) <= tolerance:
+                    sequence = self.frequency_sequence_map.get(closest_freq, 1)
+                    return sequence
+
+            # 只在第一次找不到频点时记录警告，避免日志过多
+            if not hasattr(self, '_frequency_mapping_warned'):
+                self._frequency_mapping_warned = set()
+            if frequency not in self._frequency_mapping_warned:
+                logger.warning(f"未找到频点{frequency}Hz的序号映射，使用默认序号1")
+                self._frequency_mapping_warned.add(frequency)
+            return 1
+
+        except Exception as e:
+            logger.error(f"获取频点{frequency}Hz序号失败: {e}")
+            return 1
+
+    def _get_channel_voltage(self, channel_num: int) -> float:
+        """
+        获取指定通道的电压值（辅助方法）
+
+        Args:
+            channel_num: 通道号（1-8）
+
+        Returns:
+            电压值（V）
+        """
+        try:
+            # 检查通信管理器是否存在
+            if not self.comm_manager:
+                logger.debug(f"通道{channel_num}通信管理器未初始化，使用默认电压")
+                return 3.2
+
+            # 检查通信管理器是否有read_voltage方法
+            if not hasattr(self.comm_manager, 'read_voltage'):
+                logger.debug(f"通道{channel_num}通信管理器无read_voltage方法，使用默认电压")
+                return 3.2
+
+            # 尝试从通信管理器读取电压
+            voltage = self.comm_manager.read_voltage(channel_num - 1)  # 转换为0基索引
+            if voltage is not None and voltage > 0:
+                return voltage
+            else:
+                logger.debug(f"通道{channel_num}电压读取无效({voltage})，使用默认电压")
+                return 3.2  # 默认电压值
+        except Exception as e:
+            # 减少错误日志的频率，改为debug级别
+            logger.debug(f"获取通道{channel_num}电压失败: {e}")
+            return 3.2  # 默认电压值
+    
+    def validate_impedance_data(self, channel_num: int) -> bool:
+        """
+        验证指定通道的阻抗数据有效性
+        
+        Args:
+            channel_num: 通道号（1-8）
+            
+        Returns:
+            数据是否有效
+        """
+        try:
+            if channel_num not in self.impedance_data_storage:
+                return False
+            
+            channel_data = self.impedance_data_storage[channel_num]
+            if not channel_data:
+                return False
+            
+            # 检查数据完整性
+            for frequency, impedance_info in channel_data.items():
+                if 'real' not in impedance_info or 'imag' not in impedance_info:
+                    return False
+                
+                # 检查数据合理性
+                real_val = impedance_info['real']
+                imag_val = impedance_info['imag']
+                
+                if not isinstance(real_val, (int, float)) or not isinstance(imag_val, (int, float)):
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"验证通道{channel_num}阻抗数据失败: {e}")
+            return False
+
+    def _calculate_and_update_outlier_rate(self, channel_num: int, frequency: float, z_value: float):
+        """
+        计算并更新离群率（批量测试模式专用）
+
+        Args:
+            channel_num: 通道号
+            frequency: 测试频率 (Hz)
+            z_value: Z值 (mΩ)
+
+        Returns:
+            tuple: (baseline_z_value, deviation_percent, outlier_result)
+        """
+        try:
+            logger.debug(f"通道{channel_num} 开始离群率计算")
+
+            # 🚫 离群检测功能已删除
+            return None, None, None
+
+            # 获取基准Z值
+            try:
+                baseline_details = outlier_manager.get_baseline_details(config['active_baseline_id'])
+                logger.debug(f"通道{channel_num} 获取基准详情: 数量={len(baseline_details) if baseline_details else 0}")
+
+                if not baseline_details:
+                    logger.debug(f"通道{channel_num} 基准详情为空")
+                    return None, None, None
+
+                # 构建基准数据字典（按通道和频率组织）
+                baseline_dict = {}
+                for detail in baseline_details:
+                    channel = detail['channel_number']
+                    freq = detail['frequency']
+                    if channel not in baseline_dict:
+                        baseline_dict[channel] = {}
+                    baseline_dict[channel][freq] = detail
+
+                logger.debug(f"通道{channel_num} 基准数据结构: {len(baseline_dict)}个通道")
+
+                # 查找对应频率的基准值
+                baseline_z = None
+
+                # 查找最接近的频率
+                target_frequency = frequency
+                min_diff = float('inf')
+                matched_frequency = None
+
+                # 从所有基准数据中找到最接近的频率
+                all_frequencies = set()
+                for ch_data in baseline_dict.values():
+                    all_frequencies.update(ch_data.keys())
+
+                for freq in all_frequencies:
+                    freq_diff = abs(freq - target_frequency)
+                    if freq_diff < min_diff:
+                        min_diff = freq_diff
+                        matched_frequency = freq
+
+                # 检查频率匹配容差
+                tolerance = max(target_frequency * 0.1, 1.0)
+                logger.debug(f"通道{channel_num} 频率匹配: 目标={target_frequency}Hz, 匹配={matched_frequency}Hz, 差异={min_diff:.3f}Hz")
+
+                if matched_frequency is None or min_diff > tolerance:
+                    logger.warning(f"通道{channel_num} 频率匹配失败: 未找到合适的基准频率")
+                    return None, None, None
+
+                # 使用平均模式计算基准Z值（统一模式）
+                z_values = []
+                for ch_data in baseline_dict.values():
+                    if matched_frequency in ch_data:
+                        z_values.append(ch_data[matched_frequency]['median_z_value'])
+
+                if z_values:
+                    baseline_z = sum(z_values) / len(z_values)
+                    logger.debug(f"通道{channel_num} 基准Z={baseline_z:.3f}mΩ (来自{len(z_values)}个通道)")
+                else:
+                    logger.warning(f"通道{channel_num} 未找到任何通道基准")
+
+                if baseline_z is None:
+                    logger.warning(f"通道{channel_num} 频率{frequency}Hz未找到基准Z值")
+                    return None, None, None
+
+            except Exception as e:
+                logger.error(f"通道{channel_num} 获取基准Z值失败: {e}")
+                return None, None, None
+
+            # 计算偏差百分比
+            if baseline_z > 0:
+                deviation_percent = abs(z_value - baseline_z) / baseline_z * 100
+            else:
+                deviation_percent = 0
+
+            logger.debug(f"通道{channel_num} 偏差计算: Z值={z_value:.3f}mΩ, 基准Z={baseline_z:.3f}mΩ, 偏差={deviation_percent:.2f}%")
+
+            # 保存频点偏差数据到通道对象（如果需要UI更新）
+            if channel_num not in self.channel_frequency_deviations:
+                self.channel_frequency_deviations[channel_num] = {}
+
+            self.channel_frequency_deviations[channel_num][frequency] = deviation_percent
+
+            logger.debug(f"通道{channel_num} 当前频点偏差数据: {self.channel_frequency_deviations[channel_num]}")
+
+            # 获取偏差阈值
+            threshold = config.get('deviation_threshold', 10.0)
+
+            # 计算当前最大偏差
+            max_deviation = max(self.channel_frequency_deviations[channel_num].values()) if self.channel_frequency_deviations[channel_num] else 0
+
+            # 确定离群率结果
+            if max_deviation <= threshold:
+                outlier_result = "PASS"
+            else:
+                outlier_result = f"{max_deviation:.1f}%"
+
+            logger.debug(f"通道{channel_num} 离群率判断: 最大偏差={max_deviation:.2f}%, 阈值={threshold}%, 结果={outlier_result}")
+
+            # 通过回调函数更新UI显示（如果有的话）
+            try:
+                if hasattr(self, 'progress_callback') and self.progress_callback:
+                    callback_data = {
+                        'state': 'outlier_rate_update',
+                        'outlier_result': outlier_result,
+                        'baseline_filename': f"基准_{config['active_baseline_id']}.json",
+                        'frequency_deviations': self.channel_frequency_deviations[channel_num].copy(),
+                        'current_frequency': frequency,
+                        'z_value': z_value,
+                        'deviation_percent': deviation_percent
+                    }
+                    logger.debug(f"通道{channel_num} 发送UI更新回调")
+                    self.progress_callback(channel_num, callback_data)
+                    logger.debug(f"通道{channel_num} UI更新回调发送成功")
+                else:
+                    logger.debug(f"通道{channel_num} 没有progress_callback，跳过UI更新")
+
+            except Exception as e:
+                logger.error(f"通道{channel_num} 更新离群率UI显示失败: {e}")
+
+            logger.debug(f"通道{channel_num} 离群率计算完成: Z={z_value:.3f}mΩ, 基准={baseline_z:.3f}mΩ, 偏差={deviation_percent:.1f}%, 结果={outlier_result}")
+
+            # 返回基准Z值、当前频点偏差百分比和离群率结果
+            return baseline_z, deviation_percent, outlier_result
+
+        except Exception as e:
+            logger.error(f"通道{channel_num} 实时离群率计算失败: {e}")
+            return None, None, None

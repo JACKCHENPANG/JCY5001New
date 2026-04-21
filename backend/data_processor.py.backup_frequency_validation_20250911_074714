@@ -1,0 +1,1208 @@
+# -*- coding: utf-8 -*-
+"""
+数据处理器
+负责阻抗数据的分析和处理
+
+Author: Jack
+Date: 2025-01-27
+"""
+
+import numpy as np
+import logging
+from typing import Dict, List, Any, Tuple, Optional
+from scipy import signal, interpolate
+from scipy.optimize import curve_fit
+import math
+
+from .eis_analyzer import EISAnalyzer
+# EnhancedEISAnalyzer removed; unified to EISAnalyzer.calculate_rs_rct_enhanced
+
+logger = logging.getLogger(__name__)
+
+
+class DataProcessor:
+    """数据处理器类"""
+
+    def __init__(self, config_manager=None):
+        """
+        初始化数据处理器
+
+        Args:
+            config_manager: 配置管理器（可选）
+        """
+        self.config_manager = config_manager
+
+        # 数据处理配置
+        self.processing_config = self._load_processing_config()
+
+        # 创建EIS分析器
+        self.eis_analyzer = EISAnalyzer()
+
+        # 统一算法：仅使用 EISAnalyzer.calculate_rs_rct_enhanced
+        self.enhanced_eis_analyzer = None
+        self.use_enhanced_analysis = True
+        logger.info("✅ 统一为单一增强算法（半圆直径法），不再初始化 EnhancedEISAnalyzer")
+
+        # 新增性能监控和降级机制
+        self.performance_mode = "auto"  # auto, fast, quality
+        self.processing_times = []  # 记录处理时间
+        self.max_processing_time = 5.0  # 最大处理时间（秒）
+        self.cpu_intensive_operations_enabled = True  # CPU密集型操作开关
+
+        logger.debug("数据处理器初始化完成（统一单一增强算法）")
+
+    def _monitor_performance(self, processing_time: float):
+        """
+        监控处理性能并动态调整策略
+
+        Args:
+            processing_time: 处理时间（秒）
+        """
+        try:
+            # 记录处理时间
+            self.processing_times.append(processing_time)
+
+            # 只保留最近10次的记录
+            if len(self.processing_times) > 10:
+                self.processing_times = self.processing_times[-10:]
+
+            # 计算平均处理时间
+            avg_time = sum(self.processing_times) / len(self.processing_times)
+
+            # 动态调整性能模式
+            if avg_time > self.max_processing_time:
+                if self.performance_mode != "fast":
+                    self.performance_mode = "fast"
+                    self.cpu_intensive_operations_enabled = False
+                    logger.warning(f"⚠️ 检测到处理时间过长(平均{avg_time:.2f}秒)，切换到快速模式")
+            elif avg_time < self.max_processing_time * 0.5:
+                if self.performance_mode != "quality":
+                    self.performance_mode = "quality"
+                    self.cpu_intensive_operations_enabled = True
+                    logger.info(f"✅ 处理性能良好(平均{avg_time:.2f}秒)，切换到质量模式")
+
+        except Exception as e:
+            logger.error(f"性能监控失败: {e}")
+
+    def _should_use_cpu_intensive_operations(self) -> bool:
+        """
+        判断是否应该使用CPU密集型操作
+
+        Returns:
+            是否使用CPU密集型操作
+        """
+        return self.cpu_intensive_operations_enabled and self.performance_mode != "fast"
+
+    def _load_processing_config(self) -> Dict:
+        """加载数据处理配置"""
+        if self.config_manager is None:
+            # 使用默认配置
+            return {
+                'data_optimization': True,
+                'outlier_filter': True,
+                'data_smoothing': False,
+                'smoothing_strength': 5,
+                'curve_fitting': True,
+                'advanced_smoothing': True,
+                'save_raw_data': False
+            }
+
+        return {
+            'data_optimization': self.config_manager.get('data.optimization', True),
+            'outlier_filter': self.config_manager.get('data.outlier_filter', True),
+            'data_smoothing': self.config_manager.get('data.smoothing', False),
+            'smoothing_strength': self.config_manager.get('data.smoothing_strength', 5),
+            'curve_fitting': self.config_manager.get('data.curve_fitting', True),
+            'advanced_smoothing': self.config_manager.get('data.advanced_smoothing', True),
+            'save_raw_data': self.config_manager.get('data.save_raw', False)
+        }
+
+    def process_impedance_data(self, raw_data: Dict, frequencies: List[float]) -> Dict:
+        """
+        处理阻抗数据（性能优化版）
+
+        Args:
+            raw_data: 原始阻抗数据
+            frequencies: 频率列表
+
+        Returns:
+            处理后的数据字典
+        """
+        try:
+            import time
+            start_time = time.time()
+
+            logger.debug(f"开始处理阻抗数据，性能模式: {self.performance_mode}")
+
+            # 提取阻抗数据
+            impedance_data = self._extract_impedance_values(raw_data, frequencies)
+
+            # 数据优化
+            if self.processing_config['data_optimization']:
+                impedance_data = self._optimize_data(impedance_data)
+
+            # 异常值过滤
+            if self.processing_config['outlier_filter']:
+                impedance_data = self._filter_outliers(impedance_data)
+
+            # 数据平滑
+            if self.processing_config['data_smoothing']:
+                impedance_data = self._smooth_data(impedance_data)
+
+            # 计算Rs和Rct
+            rs_value, rct_value = self._calculate_rs_rct(impedance_data, frequencies)
+
+            # 计算W阻抗
+            w_impedance = self._calculate_w_impedance(impedance_data, frequencies)
+
+            # 生成频率数据列表
+            frequency_data = self._generate_frequency_data(impedance_data, frequencies)
+
+            result = {
+                'rs': rs_value,
+                'rct': rct_value,
+                'w_impedance': w_impedance,
+                'frequency_data': frequency_data,
+                'processed_impedance': impedance_data
+            }
+
+            # 新增性能监控
+            processing_time = time.time() - start_time
+            self._monitor_performance(processing_time)
+
+            logger.debug(f"阻抗数据处理完成: Rs={rs_value:.3f}mΩ, Rct={rct_value:.3f}mΩ, 耗时: {processing_time:.2f}秒")
+            return result
+
+        except Exception as e:
+            logger.error(f"处理阻抗数据失败: {e}")
+            return {
+                'rs': 0.0,
+                'rct': 0.0,
+                'w_impedance': 0.0,
+                'frequency_data': [],
+                'processed_impedance': {}
+            }
+
+    def _extract_impedance_values(self, raw_data: Dict, frequencies: List[float]) -> Dict:
+        """
+        提取阻抗值
+
+        Args:
+            raw_data: 原始数据
+            frequencies: 频率列表
+
+        Returns:
+            阻抗数据字典
+        """
+        try:
+            impedance_data = {
+                'frequencies': frequencies,
+                'real_parts': [],
+                'imag_parts': [],
+                'magnitudes': [],
+                'phases': []
+            }
+
+            # 添加详细的数据结构调试信息
+            logger.debug(f"数据处理器接收到的原始数据结构: {list(raw_data.keys())}")
+            logger.debug(f"期望处理的频率列表: {frequencies}")
+
+            # 检查是否有详细的频率数据
+            if 'impedance_details' in raw_data and raw_data['impedance_details']:
+                impedance_details = raw_data['impedance_details']
+                logger.debug(f"从详细阻抗数据中提取值，数据点数: {len(impedance_details)}")
+
+                # 调试：显示impedance_details的结构
+                if impedance_details:
+                    sample_detail = impedance_details[0]
+                    logger.debug(f"阻抗明细数据样本结构: {list(sample_detail.keys())}")
+                    logger.debug(f"样本数据: 频率={sample_detail.get('frequency', 'N/A')}Hz, "
+                               f"实部={sample_detail.get('impedance_real', 'N/A')}mΩ, "
+                               f"虚部={sample_detail.get('impedance_imag', 'N/A')}mΩ")
+
+                # 创建频率到阻抗的映射
+                freq_to_impedance = {}
+                for detail in impedance_details:
+                    freq = detail['frequency']
+                    real_part = detail['impedance_real']
+                    imag_part = detail['impedance_imag']
+                    freq_to_impedance[freq] = (real_part, imag_part)
+
+                logger.debug(f"构建的频率映射包含 {len(freq_to_impedance)} 个频率点: {sorted(freq_to_impedance.keys())}")
+
+                # 按频率列表顺序提取数据
+                missing_frequencies = []
+                for freq in frequencies:
+                    if freq in freq_to_impedance:
+                        real_part, imag_part = freq_to_impedance[freq]
+                        magnitude = abs(complex(real_part, imag_part))
+                        # 修复相位角计算 - 不再对虚部取反，因为设备数据已经是正确符号
+                        phase = math.degrees(math.atan2(imag_part, real_part))
+
+                        impedance_data['real_parts'].append(real_part)
+                        impedance_data['imag_parts'].append(imag_part)
+                        impedance_data['magnitudes'].append(magnitude)
+                        impedance_data['phases'].append(phase)
+                    else:
+                        missing_frequencies.append(freq)
+                        logger.warning(f"频率 {freq}Hz 的阻抗数据缺失")
+                        # 使用默认值
+                        impedance_data['real_parts'].append(5.0)
+                        impedance_data['imag_parts'].append(0.0)
+                        impedance_data['magnitudes'].append(5.0)
+                        impedance_data['phases'].append(0.0)
+
+                if missing_frequencies:
+                    logger.warning(f"总共缺失 {len(missing_frequencies)} 个频率点的数据: {missing_frequencies}")
+                    logger.warning(f"可用频率点: {sorted(freq_to_impedance.keys())}")
+                    logger.warning(f"期望频率点: {frequencies}")
+
+                logger.debug(f"成功提取 {len(impedance_data['real_parts'])} 个频率点的阻抗数据")
+
+            elif 'real' in raw_data and 'imag' in raw_data:
+                # 单点数据（回退方案）
+                logger.warning("使用单点数据回退方案")
+                logger.warning(f"原始数据结构: {list(raw_data.keys())}")
+                logger.warning(f"缺少impedance_details，将使用单点数据填充所有频率点")
+
+                real_part = raw_data['real']
+                imag_part = raw_data['imag']
+                magnitude = raw_data.get('magnitude', abs(complex(real_part, imag_part)))
+                # 修复相位角计算 - 不再对虚部取反，因为设备数据已经是正确符号
+                phase = raw_data.get('phase', math.degrees(math.atan2(imag_part, real_part)))
+
+                logger.warning(f"单点数据值: 实部={real_part:.3f}mΩ, 虚部={imag_part:.3f}mΩ")
+                logger.warning(f"将为{len(frequencies)}个频率点复制相同的值")
+
+                # 为所有频率复制相同的值（仅作为回退）
+                for _ in frequencies:
+                    impedance_data['real_parts'].append(real_part)
+                    impedance_data['imag_parts'].append(imag_part)
+                    impedance_data['magnitudes'].append(magnitude)
+                    impedance_data['phases'].append(phase)
+
+            else:
+                # 模拟阻抗数据（用于测试）
+                logger.warning("使用模拟阻抗数据")
+                for freq in frequencies:
+                    # 简化的阻抗模型：Rs + Rct/(1 + j*w*Rct*C)
+                    rs = 5.0 + np.random.normal(0, 0.1)  # Rs约5mΩ
+                    rct = 10.0 + np.random.normal(0, 0.5)  # Rct约10mΩ
+                    c = 1e-3  # 电容约1mF
+
+                    omega = 2 * math.pi * freq
+                    z_rct = rct / (1 + 1j * omega * rct * c)
+                    z_total = rs + z_rct
+
+                    real_part = z_total.real
+                    imag_part = z_total.imag
+                    magnitude = abs(z_total)
+                    # 修复相位角计算 - 不再对虚部取反，因为设备数据已经是正确符号
+                    phase = math.degrees(math.atan2(imag_part, real_part))
+
+                    impedance_data['real_parts'].append(real_part)
+                    impedance_data['imag_parts'].append(imag_part)
+                    impedance_data['magnitudes'].append(magnitude)
+                    impedance_data['phases'].append(phase)
+
+            return impedance_data
+
+        except Exception as e:
+            logger.error(f"提取阻抗值失败: {e}")
+            return {
+                'frequencies': frequencies,
+                'real_parts': [0.0] * len(frequencies),
+                'imag_parts': [0.0] * len(frequencies),
+                'magnitudes': [0.0] * len(frequencies),
+                'phases': [0.0] * len(frequencies)
+            }
+
+    def _optimize_data(self, impedance_data: Dict) -> Dict:
+        """
+        数据优化
+
+        Args:
+            impedance_data: 阻抗数据
+
+        Returns:
+            优化后的数据
+        """
+        try:
+            # 数据校准和补偿
+            optimized_data = impedance_data.copy()
+
+            # 温度补偿（简化处理）
+            temp_coefficient = 0.002  # 温度系数
+            temp_offset = 25.0  # 参考温度
+            current_temp = 25.0  # 当前温度（应从传感器获取）
+
+            temp_factor = 1 + temp_coefficient * (current_temp - temp_offset)
+
+            optimized_data['real_parts'] = [r * temp_factor for r in impedance_data['real_parts']]
+            optimized_data['magnitudes'] = [m * temp_factor for m in impedance_data['magnitudes']]
+
+            logger.debug("数据优化完成")
+            return optimized_data
+
+        except Exception as e:
+            logger.error(f"数据优化失败: {e}")
+            return impedance_data
+
+    def _filter_outliers(self, impedance_data: Dict) -> Dict:
+        """
+        异常值过滤
+
+        Args:
+            impedance_data: 阻抗数据
+
+        Returns:
+            过滤后的数据
+        """
+        try:
+            filtered_data = impedance_data.copy()
+
+            # 使用3σ准则过滤异常值
+            for key in ['real_parts', 'imag_parts', 'magnitudes']:
+                values = np.array(impedance_data[key])
+                mean_val = np.mean(values)
+                std_val = np.std(values)
+
+                # 标记异常值
+                outliers = np.abs(values - mean_val) > 3 * std_val
+
+                if np.any(outliers):
+                    # 用中位数替换异常值
+                    median_val = np.median(values)
+                    values[outliers] = median_val
+                    filtered_data[key] = values.tolist()
+
+                    logger.debug(f"过滤了 {np.sum(outliers)} 个异常值 ({key})")
+
+            return filtered_data
+
+        except Exception as e:
+            logger.error(f"异常值过滤失败: {e}")
+            return impedance_data
+
+    def _smooth_data(self, impedance_data: Dict) -> Dict:
+        """
+        数据平滑 - 改进版本，支持多种平滑算法和拟合曲线
+
+        Args:
+            impedance_data: 阻抗数据
+
+        Returns:
+            平滑后的数据
+        """
+        try:
+            smoothed_data = impedance_data.copy()
+
+            # 获取平滑强度
+            strength = self.processing_config['smoothing_strength']
+            data_length = len(impedance_data.get('frequencies', []))
+
+            if data_length < 3:
+                logger.warning("数据点不足，跳过平滑处理")
+                return impedance_data
+
+            # 性能优化根据性能模式选择算法
+            if self.performance_mode == "fast" or not self._should_use_cpu_intensive_operations():
+                # 快速模式：只使用简化平滑
+                logger.debug("使用快速模式平滑算法")
+                smoothed_data = self._apply_simple_smoothing(smoothed_data)
+            else:
+                # 质量模式：使用完整的平滑算法
+                logger.debug("使用质量模式平滑算法")
+
+                # 方法1：改进的Savitzky-Golay滤波器
+                smoothed_data = self._apply_savgol_smoothing(smoothed_data, strength)
+
+                # 方法2：添加拟合曲线平滑（针对奈奎斯特图的特殊处理）
+                if data_length >= 5 and self._should_use_cpu_intensive_operations():
+                    smoothed_data = self._apply_curve_fitting_smoothing(smoothed_data)
+
+                # 方法3：移动平均平滑（轻度）
+                smoothed_data = self._apply_moving_average_smoothing(smoothed_data, strength)
+
+            logger.debug(f"数据平滑完成 - 数据点数: {data_length}, 平滑强度: {strength}")
+            return smoothed_data
+
+        except Exception as e:
+            logger.error(f"数据平滑失败: {e}")
+            return impedance_data
+
+    def _apply_savgol_smoothing(self, impedance_data: Dict, strength: int) -> Dict:
+        """
+        应用改进的Savitzky-Golay滤波器
+
+        Args:
+            impedance_data: 阻抗数据
+            strength: 平滑强度
+
+        Returns:
+            平滑后的数据
+        """
+        try:
+            data_length = len(impedance_data.get('frequencies', []))
+
+            # 根据数据长度和强度动态调整窗口大小
+            if strength <= 3:
+                window_length = min(5, data_length)
+            elif strength <= 6:
+                window_length = min(7, data_length)
+            else:
+                window_length = min(9, data_length)
+
+            # 确保窗口长度为奇数
+            if window_length % 2 == 0:
+                window_length -= 1
+
+            if window_length >= 3:
+                for key in ['real_parts', 'imag_parts', 'magnitudes']:
+                    if key in impedance_data:
+                        values = np.array(impedance_data[key])
+
+                        if len(values) >= window_length:
+                            # 使用更高阶的多项式拟合
+                            poly_order = min(3, window_length - 1)
+                            smoothed_values = signal.savgol_filter(
+                                values, window_length, poly_order
+                            )
+                            impedance_data[key] = smoothed_values.tolist()
+
+            logger.debug(f"Savitzky-Golay平滑完成 - 窗口长度: {window_length}")
+            return impedance_data
+
+        except Exception as e:
+            logger.error(f"Savitzky-Golay平滑失败: {e}")
+            return impedance_data
+
+    def _apply_simple_smoothing(self, impedance_data: Dict) -> Dict:
+        """
+        应用简化平滑算法 - 用于低配置电脑的性能优化
+
+        Args:
+            impedance_data: 阻抗数据
+
+        Returns:
+            简化平滑后的数据
+        """
+        try:
+            # 使用简单的移动平均，窗口大小固定为3
+            for key in ['real_parts', 'imag_parts', 'magnitudes']:
+                if key in impedance_data:
+                    values = np.array(impedance_data[key])
+                    if len(values) >= 3:
+                        # 简单的3点移动平均
+                        smoothed = np.convolve(values, np.ones(3)/3, mode='same')
+                        impedance_data[key] = smoothed.tolist()
+
+            logger.debug("简化平滑算法完成")
+            return impedance_data
+
+        except Exception as e:
+            logger.error(f"简化平滑失败: {e}")
+            return impedance_data
+
+    def _fit_nyquist_curve_with_timeout(self, real_parts: np.ndarray, imag_parts: np.ndarray,
+                                       frequencies: np.ndarray, timeout_seconds: float = 2.0) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        带超时的奈奎斯特曲线拟合
+
+        Args:
+            real_parts: 实部数据
+            imag_parts: 虚部数据
+            frequencies: 频率数据
+            timeout_seconds: 超时时间（秒）
+
+        Returns:
+            (拟合后的实部, 拟合后的虚部)
+        """
+        try:
+            import signal
+            import time
+
+            start_time = time.time()
+
+            # 设置超时处理
+            def timeout_handler(signum, frame):
+                raise TimeoutError("拟合算法超时")
+
+            # 在Windows上使用简化的超时检查
+            try:
+                # 尝试快速拟合
+                result = self._fit_nyquist_curve(real_parts, imag_parts, frequencies)
+
+                # 检查是否超时
+                if time.time() - start_time > timeout_seconds:
+                    logger.warning(f"拟合算法接近超时，使用简化结果")
+                    return self._simple_interpolation(real_parts, imag_parts, frequencies)
+
+                return result
+
+            except Exception as e:
+                logger.debug(f"复杂拟合失败，使用简化插值: {e}")
+                return self._simple_interpolation(real_parts, imag_parts, frequencies)
+
+        except Exception as e:
+            logger.error(f"带超时拟合失败: {e}")
+            return None, None
+
+    def _simple_interpolation(self, real_parts: np.ndarray, imag_parts: np.ndarray,
+                             frequencies: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        简化的插值方法
+
+        Args:
+            real_parts: 实部数据
+            imag_parts: 虚部数据
+            frequencies: 频率数据
+
+        Returns:
+            (插值后的实部, 插值后的虚部)
+        """
+        try:
+            # 使用简单的线性插值
+            from scipy import interpolate
+
+            # 按频率排序
+            sort_indices = np.argsort(frequencies)
+            sorted_real = real_parts[sort_indices]
+            sorted_imag = imag_parts[sort_indices]
+            sorted_freq = frequencies[sort_indices]
+
+            # 线性插值（计算量小）
+            f_real = interpolate.interp1d(sorted_freq, sorted_real, kind='linear', fill_value='extrapolate')
+            f_imag = interpolate.interp1d(sorted_freq, sorted_imag, kind='linear', fill_value='extrapolate')
+
+            # 生成平滑后的数据
+            smoothed_real = f_real(sorted_freq)
+            smoothed_imag = f_imag(sorted_freq)
+
+            # 恢复原始顺序
+            original_order = np.argsort(sort_indices)
+            final_real = smoothed_real[original_order]
+            final_imag = smoothed_imag[original_order]
+
+            return final_real, final_imag
+
+        except Exception as e:
+            logger.error(f"简化插值失败: {e}")
+            return real_parts, imag_parts  # 返回原始数据
+
+    def _apply_curve_fitting_smoothing(self, impedance_data: Dict) -> Dict:
+        """
+        应用拟合曲线平滑 - 专门针对EIS数据的半圆拟合（性能优化版）
+
+        Args:
+            impedance_data: 阻抗数据
+
+        Returns:
+            拟合平滑后的数据
+        """
+        try:
+            import time
+            start_time = time.time()
+
+            real_parts = np.array(impedance_data.get('real_parts', []))
+            imag_parts = np.array(impedance_data.get('imag_parts', []))
+            frequencies = np.array(impedance_data.get('frequencies', []))
+
+            if len(real_parts) < 5 or len(imag_parts) < 5:
+                return impedance_data
+
+            # 性能优化添加超时机制和数据量检查
+            data_points = len(real_parts)
+
+            # 对于大数据集或低配置电脑，使用简化算法
+            if data_points > 50:
+                logger.debug(f"数据点过多({data_points})，使用简化平滑算法")
+                return self._apply_simple_smoothing(impedance_data)
+
+            # 对奈奎斯特图进行分段拟合（带超时）
+            smoothed_real, smoothed_imag = self._fit_nyquist_curve_with_timeout(
+                real_parts, imag_parts, frequencies, timeout_seconds=2.0
+            )
+
+            # 检查处理时间
+            elapsed_time = time.time() - start_time
+            if elapsed_time > 3.0:
+                logger.warning(f"拟合曲线平滑耗时过长: {elapsed_time:.2f}秒，建议使用简化算法")
+
+            if smoothed_real is not None and smoothed_imag is not None:
+                impedance_data['real_parts'] = smoothed_real.tolist()
+                impedance_data['imag_parts'] = smoothed_imag.tolist()
+
+                # 重新计算幅值
+                magnitudes = np.sqrt(smoothed_real**2 + smoothed_imag**2)
+                impedance_data['magnitudes'] = magnitudes.tolist()
+
+                logger.debug(f"拟合曲线平滑完成，耗时: {elapsed_time:.2f}秒")
+            else:
+                logger.debug("拟合失败，使用简化平滑算法")
+                return self._apply_simple_smoothing(impedance_data)
+
+            return impedance_data
+
+        except Exception as e:
+            logger.error(f"拟合曲线平滑失败: {e}")
+            # 降级到简化算法
+            return self._apply_simple_smoothing(impedance_data)
+
+    def _fit_nyquist_curve(self, real_parts: np.ndarray, imag_parts: np.ndarray, frequencies: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        拟合奈奎斯特曲线 - 使用分段多项式拟合
+
+        Args:
+            real_parts: 实部数据
+            imag_parts: 虚部数据
+            frequencies: 频率数据
+
+        Returns:
+            (拟合后的实部, 拟合后的虚部)
+        """
+        try:
+            from scipy import interpolate
+
+            # 按频率排序
+            sort_indices = np.argsort(frequencies)
+            sorted_real = real_parts[sort_indices]
+            sorted_imag = imag_parts[sort_indices]
+            sorted_freq = frequencies[sort_indices]
+
+            # 使用样条插值进行平滑
+            # 对数频率作为参数，更适合EIS数据
+            log_freq = np.log10(sorted_freq + 1e-10)  # 避免log(0)
+
+            # 三次样条插值
+            spline_real = interpolate.UnivariateSpline(log_freq, sorted_real, s=len(sorted_real)*0.1)
+            spline_imag = interpolate.UnivariateSpline(log_freq, sorted_imag, s=len(sorted_imag)*0.1)
+
+            # 生成平滑后的数据
+            smoothed_real = spline_real(log_freq)
+            smoothed_imag = spline_imag(log_freq)
+
+            # 恢复原始顺序
+            original_order = np.argsort(sort_indices)
+            final_real = smoothed_real[original_order]
+            final_imag = smoothed_imag[original_order]
+
+            return final_real, final_imag
+
+        except Exception as e:
+            logger.error(f"奈奎斯特曲线拟合失败: {e}")
+            return None, None
+
+    def _apply_moving_average_smoothing(self, impedance_data: Dict, strength: int) -> Dict:
+        """
+        应用移动平均平滑 - 轻度平滑，保持数据特征
+
+        Args:
+            impedance_data: 阻抗数据
+            strength: 平滑强度
+
+        Returns:
+            平滑后的数据
+        """
+        try:
+            # 只在强度较高时应用移动平均
+            if strength < 7:
+                return impedance_data
+
+            window_size = min(3, len(impedance_data.get('frequencies', [])))
+
+            if window_size >= 3:
+                for key in ['real_parts', 'imag_parts', 'magnitudes']:
+                    if key in impedance_data:
+                        values = np.array(impedance_data[key])
+
+                        if len(values) >= window_size:
+                            # 简单移动平均
+                            smoothed = np.convolve(values, np.ones(window_size)/window_size, mode='same')
+                            impedance_data[key] = smoothed.tolist()
+
+            logger.debug(f"移动平均平滑完成 - 窗口大小: {window_size}")
+            return impedance_data
+
+        except Exception as e:
+            logger.error(f"移动平均平滑失败: {e}")
+            return impedance_data
+
+    def _calculate_rs_rct(self, impedance_data: Dict, frequencies: List[float]) -> Tuple[float, float]:
+        """
+        计算Rs和Rct值 - 统一使用增强版分析，确保算法一致性
+
+        Args:
+            impedance_data: 阻抗数据
+            frequencies: 频率列表
+
+        Returns:
+            (Rs值, Rct值) 单位：mΩ
+        """
+        try:
+            # 统一使用增强版EIS分析（半圆直径法），不再提供标准/回退路径
+            logger.info("使用增强版EIS分析算法（唯一）")
+            return self._calculate_rs_rct_enhanced(impedance_data, frequencies)
+
+        except Exception as e:
+            logger.error(f"EIS分析失败（不回退）：{e}")
+            raise
+
+    def _calculate_rs_rct_enhanced(self, impedance_data: Dict, frequencies: List[float]) -> Tuple[float, float]:
+        """
+        使用增强版EIS分析方法计算Rs和Rct值
+
+        Args:
+            impedance_data: 阻抗数据
+            frequencies: 频率列表
+
+        Returns:
+            (Rs值, Rct值) 单位：mΩ
+        """
+        try:
+            logger.info("开始使用增强版EIS分析方法")
+
+            # 提取数据 - 支持多种数据格式
+            if 'real_parts' in impedance_data and 'imag_parts' in impedance_data:
+                # 新格式：直接包含列表
+                real_parts = impedance_data['real_parts']
+                imag_parts = impedance_data['imag_parts']
+                frequencies = impedance_data.get('frequencies', frequencies)
+            else:
+                # 旧格式：需要从频率字典转换
+                logger.warning("使用旧格式阻抗数据，正在转换...")
+                real_parts = []
+                imag_parts = []
+
+                # 处理字符串键的情况
+                freq_keys = []
+                for key in impedance_data.keys():
+                    try:
+                        freq_val = float(key)
+                        freq_keys.append(freq_val)
+                    except (ValueError, TypeError):
+                        continue
+
+                if freq_keys:
+                    sorted_freqs = sorted(freq_keys, reverse=True)
+                    for freq in sorted_freqs:
+                        freq_key = str(freq)  # 转换为字符串键
+                        freq_data = impedance_data.get(freq_key, {})
+                        real_parts.append(freq_data.get('real', 0.0))
+                        imag_parts.append(freq_data.get('imag', 0.0))
+                    frequencies = sorted_freqs  # 更新频率列表
+                    logger.info(f"旧格式数据转换成功: {len(freq_keys)}个频点")
+                else:
+                    logger.error("旧格式数据中没有找到有效的频率键")
+                    raise ValueError("无法从阻抗数据中提取频率信息")
+
+            # 生成电芯ID
+            cell_id = f"CH_{impedance_data.get('channel', 'Unknown')}"
+
+            # 简化算法：直接使用标准EIS分析器，避免多层调用复杂性
+            enhanced_result = self.eis_analyzer.calculate_rs_rct_enhanced(
+                frequencies, real_parts, imag_parts, cell_id
+            )
+
+            if enhanced_result['analysis_success']:
+                rs_value = enhanced_result['rs_value']
+                rct_value = enhanced_result['rct_value']
+
+                # 记录增强版分析的额外信息
+                logger.info(f"✅ 增强版EIS分析完成: Rs={rs_value:.3f}mΩ, Rct={rct_value:.3f}mΩ")
+                logger.info(f"   SEI膜电阻: {enhanced_result.get('rsei_value', 0):.3f}mΩ")
+                logger.info(f"   Warburg系数: {enhanced_result.get('warburg_coefficient', 0):.3f}mΩ·s^(-0.5)")
+                logger.info(f"   健康状态: {enhanced_result.get('health_status', '未知')}")
+
+                # 存储完整结果供后续使用
+                impedance_data['enhanced_analysis'] = enhanced_result
+
+                return rs_value, rct_value
+            else:
+                err_msg = enhanced_result.get('error', '增强版EIS分析失败')
+                logger.error(f"增强版EIS分析失败（不回退）：{err_msg}")
+                raise RuntimeError(err_msg)
+
+        except Exception as e:
+            logger.error(f"增强版EIS分析异常（不回退）：{e}")
+            raise
+
+
+    def _calculate_w_impedance(self, impedance_data: Dict, frequencies: List[float]) -> float:
+        """
+        计算W阻抗（Warburg阻抗）
+
+        Args:
+            impedance_data: 阻抗数据
+            frequencies: 频率列表
+
+        Returns:
+            W阻抗值，单位：mΩ
+        """
+        try:
+            # 简化的Warburg阻抗计算
+            # W阻抗通常在中频段表现明显
+
+            magnitudes = np.array(impedance_data['magnitudes'])
+            freqs = np.array(frequencies)
+
+            if len(magnitudes) > 2:
+                # 找到中频段
+                mid_idx = len(freqs) // 2
+                w_impedance = magnitudes[mid_idx] * 1000  # 转换为mΩ
+
+                # 限制合理范围
+                w_impedance = max(0.1, min(50.0, w_impedance))
+
+                return w_impedance
+
+            return 10.0  # 默认值
+
+        except Exception as e:
+            logger.error(f"计算W阻抗失败: {e}")
+            return 10.0
+
+    def _generate_frequency_data(self, impedance_data: Dict, frequencies: List[float]) -> List[Dict]:
+        """
+        生成频率数据列表
+
+        Args:
+            impedance_data: 阻抗数据
+            frequencies: 频率列表
+
+        Returns:
+            频率数据列表
+        """
+        try:
+            frequency_data = []
+
+            for i, freq in enumerate(frequencies):
+                if i < len(impedance_data['real_parts']):
+                    data_point = {
+                        'frequency': freq,
+                        'impedance_real': impedance_data['real_parts'][i],
+                        'impedance_imag': impedance_data['imag_parts'][i],
+                        'impedance_magnitude': impedance_data['magnitudes'][i],
+                        'impedance_phase': impedance_data['phases'][i]
+                    }
+                    frequency_data.append(data_point)
+
+            return frequency_data
+
+        except Exception as e:
+            logger.error(f"生成频率数据失败: {e}")
+            return []
+
+    def analyze_impedance_spectrum(self, impedance_data: Dict, frequencies: List[float]) -> Dict:
+        """
+        分析阻抗谱
+
+        Args:
+            impedance_data: 阻抗数据
+            frequencies: 频率列表
+
+        Returns:
+            分析结果字典
+        """
+        try:
+            analysis_result = {
+                'circuit_model': 'Rs + Rct//C',
+                'fit_quality': 0.95,
+                'parameters': {},
+                'recommendations': []
+            }
+
+            # 等效电路拟合
+            circuit_params = self._fit_equivalent_circuit(impedance_data, frequencies)
+            analysis_result['parameters'] = circuit_params
+
+            # 电池健康状态评估
+            health_assessment = self._assess_battery_health(circuit_params)
+            analysis_result['health_assessment'] = health_assessment
+
+            # 生成建议
+            recommendations = self._generate_recommendations(circuit_params, health_assessment)
+            analysis_result['recommendations'] = recommendations
+
+            return analysis_result
+
+        except Exception as e:
+            logger.error(f"阻抗谱分析失败: {e}")
+            return {}
+
+    def _fit_equivalent_circuit(self, impedance_data: Dict, frequencies: List[float]) -> Dict:
+        """
+        等效电路拟合
+
+        Args:
+            impedance_data: 阻抗数据
+            frequencies: 频率列表
+
+        Returns:
+            电路参数字典
+        """
+        try:
+            # 简化的等效电路参数
+            real_parts = np.array(impedance_data['real_parts'])
+            imag_parts = np.array(impedance_data['imag_parts'])
+
+            # Rs：高频实部
+            rs = np.max(real_parts) if len(real_parts) > 0 else 5.0
+
+            # Rct：低频实部减去Rs
+            rct = (np.min(real_parts) - rs) if len(real_parts) > 0 else 10.0
+            rct = max(0.001, rct)  # 修复允许更小的Rct值
+
+            # C：从虚部估算电容
+            if len(imag_parts) > 0 and len(frequencies) > 0:
+                # 简化估算
+                c = 1e-3  # 默认1mF
+            else:
+                c = 1e-3
+
+            return {
+                'Rs': rs * 1000,  # mΩ
+                'Rct': rct * 1000,  # mΩ
+                'C': c * 1000,  # mF
+                'fit_error': 0.05
+            }
+
+        except Exception as e:
+            logger.error(f"等效电路拟合失败: {e}")
+            return {
+                'Rs': 5.0,
+                'Rct': 10.0,
+                'C': 1.0,
+                'fit_error': 0.1
+            }
+
+    def _assess_battery_health(self, circuit_params: Dict) -> Dict:
+        """
+        评估电池健康状态
+
+        Args:
+            circuit_params: 电路参数
+
+        Returns:
+            健康状态评估
+        """
+        try:
+            rs = circuit_params.get('Rs', 5.0)
+            rct = circuit_params.get('Rct', 10.0)
+
+            # 健康状态评分（0-100）
+            health_score = 100
+
+            # Rs影响
+            if rs > 20:
+                health_score -= 30
+            elif rs > 10:
+                health_score -= 15
+
+            # Rct影响
+            if rct > 50:
+                health_score -= 40
+            elif rct > 25:
+                health_score -= 20
+
+            health_score = max(0, health_score)
+
+            # 健康等级
+            if health_score >= 80:
+                health_level = "优秀"
+            elif health_score >= 60:
+                health_level = "良好"
+            elif health_score >= 40:
+                health_level = "一般"
+            else:
+                health_level = "较差"
+
+            return {
+                'health_score': health_score,
+                'health_level': health_level,
+                'degradation_indicators': {
+                    'internal_resistance': rs,
+                    'charge_transfer_resistance': rct
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"电池健康评估失败: {e}")
+            return {
+                'health_score': 50,
+                'health_level': "未知",
+                'degradation_indicators': {}
+            }
+
+    def _generate_recommendations(self, circuit_params: Dict, health_assessment: Dict) -> List[str]:
+        """
+        生成建议
+
+        Args:
+            circuit_params: 电路参数
+            health_assessment: 健康评估
+
+        Returns:
+            建议列表
+        """
+        recommendations = []
+
+        try:
+            rs = circuit_params.get('Rs', 5.0)
+            rct = circuit_params.get('Rct', 10.0)
+            health_score = health_assessment.get('health_score', 50)
+
+            if rs > 15:
+                recommendations.append("内阻偏高，建议检查电池连接")
+
+            if rct > 30:
+                recommendations.append("电荷传递阻抗偏高，可能存在电极老化")
+
+            if health_score < 60:
+                recommendations.append("电池健康状态较差，建议更换")
+
+            if not recommendations:
+                recommendations.append("电池状态良好")
+
+        except Exception as e:
+            logger.error(f"生成建议失败: {e}")
+            recommendations.append("无法生成建议")
+
+        return recommendations
+
+    def export_analysis_report(self, analysis_data: Dict, file_path: str) -> bool:
+        """
+        导出分析报告
+
+        Args:
+            analysis_data: 分析数据
+            file_path: 文件路径
+
+        Returns:
+            是否导出成功
+        """
+        try:
+            import json
+
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(analysis_data, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"分析报告导出成功: {file_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"导出分析报告失败: {e}")
+            return False
+
+    def enhanced_eis_analysis(self, impedance_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        增强版EIS分析方法
+
+        Args:
+            impedance_data: 阻抗数据字典，包含frequencies, real_parts, imag_parts
+
+        Returns:
+            增强版EIS分析结果
+        """
+        try:
+            logger.debug("开始增强版EIS分析...")
+
+            # 提取数据
+            frequencies = impedance_data.get('frequencies', [])
+            real_parts = impedance_data.get('real_parts', [])
+            imag_parts = impedance_data.get('imag_parts', [])
+
+            if not frequencies or not real_parts or not imag_parts:
+                logger.warning("阻抗数据不完整，无法进行增强版EIS分析")
+                return {'analysis_success': False, 'error': '数据不完整'}
+
+            if len(frequencies) != len(real_parts) or len(frequencies) != len(imag_parts):
+                logger.warning("阻抗数据长度不匹配")
+                return {'analysis_success': False, 'error': '数据长度不匹配'}
+
+            # 使用标准EIS分析器
+            cell_id = f"CH_{impedance_data.get('channel', 'Unknown')}"
+            result = self.eis_analyzer.calculate_rs_rct_enhanced(
+                frequencies, real_parts, imag_parts, cell_id
+            )
+
+            if result and result.get('analysis_success'):
+                logger.debug(f"标准EIS分析成功: Rs={result.get('rs_value', 0):.3f}mΩ, "
+                           f"Rct={result.get('rct_value', 0):.3f}mΩ, "
+                           f"Rsei={result.get('rsei_value', 0):.3f}mΩ")
+                return result
+            else:
+                logger.warning("标准EIS分析失败，回退到简化分析")
+
+            # 回退到简化分析
+            return self._simplified_eis_analysis(frequencies, real_parts, imag_parts)
+
+        except Exception as e:
+            logger.error(f"增强版EIS分析异常: {e}")
+            return {'analysis_success': False, 'error': str(e)}
+
+    def _simplified_eis_analysis(self, frequencies: List[float], real_parts: List[float],
+                                imag_parts: List[float]) -> Dict[str, Any]:
+        """
+        简化版EIS分析（回退方案）
+
+        Args:
+            frequencies: 频率列表
+            real_parts: 实部列表
+            imag_parts: 虚部列表
+
+        Returns:
+            简化分析结果
+        """
+        try:
+            # 基本参数计算
+            rs_value = real_parts[0] if real_parts else 0.0  # 高频实部作为Rs
+            total_resistance = real_parts[-1] if real_parts else 0.0  # 低频实部作为总阻抗
+
+            # 简化的Rsei计算（严格检测SEI特征）
+            rsei_value = 0.0
+            if len(frequencies) > 5:  # 需要足够的数据点
+                # 寻找高频区域的阻抗变化
+                high_freq_indices = [i for i, f in enumerate(frequencies) if f > 100]
+                if len(high_freq_indices) >= 4:  # 需要足够的高频点
+                    high_freq_real = [real_parts[i] for i in high_freq_indices]
+                    real_change = max(high_freq_real) - min(high_freq_real)
+                    total_change = total_resistance - rs_value
+
+                    # 更严格的SEI检测条件：
+                    # 1. 高频变化超过总变化的15%
+                    # 2. 绝对变化大于1.0mΩ
+                    # 3. 总阻抗变化足够大（避免噪声）
+                    if (real_change > 0.15 * total_change and
+                        real_change > 1.0 and
+                        total_change > 5.0):
+                        rsei_value = real_change
+                        logger.debug(f"检测到SEI特征: 变化={real_change:.3f}mΩ, 占比={real_change/total_change*100:.1f}%")
+                    else:
+                        logger.debug(f"未检测到明显SEI特征: 变化={real_change:.3f}mΩ, 占比={real_change/total_change*100:.1f}%")
+
+            # 计算Rct
+            rct_value = max(0.0, total_resistance - rs_value - rsei_value)
+
+            result = {
+                'analysis_success': True,
+                'rs_value': rs_value,
+                'rct_value': rct_value,
+                'rsei_value': rsei_value,
+                'warburg_coefficient': 0.0,
+                'health_status': 'unknown',
+                'analysis_method': 'simplified'
+            }
+
+            logger.debug(f"简化EIS分析完成: Rs={rs_value:.3f}mΩ, Rct={rct_value:.3f}mΩ, Rsei={rsei_value:.3f}mΩ")
+            return result
+
+        except Exception as e:
+            logger.error(f"简化EIS分析失败: {e}")
+            return {
+                'analysis_success': False,
+                'error': str(e),
+                'rs_value': 0.0,
+                'rct_value': 0.0,
+                'rsei_value': 0.0
+            }

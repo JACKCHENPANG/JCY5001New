@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "5002:5002"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/battery_test
+      - JWT_SECRET_KEY=your-secret-key-here
+      - FLASK_ENV=production
+    depends_on:
+      - db
+    volumes:
+      - ./uploads:/app/uploads
+      - ./models:/app/models
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=battery_test
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
+

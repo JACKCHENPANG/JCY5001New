@@ -1,0 +1,1882 @@
+# -*- coding: utf-8 -*-
+"""
+重构后的主窗口类 - 第二版
+使用新的管理器架构，将1221行的上帝类拆分为多个专门的管理器
+
+重构说明：
+- 原1221行的MainWindow已拆分为5个专门管理器
+- 使用组合模式保持向后兼容性
+- 遵循单一职责原则
+
+重构后的管理器：
+1. WindowLayoutManager - 窗口布局管理
+2. ComponentInitializer - 组件初始化管理
+3. SettingsLoader - 设置加载管理
+4. EventCoordinator - 事件协调管理
+5. AuthorizationManager - 授权管理
+
+Author: Jack
+Date: 2025-01-30
+Version: 重构版本 - 拆分为5个专门管理器
+"""
+
+import logging
+import os
+import time
+from datetime import datetime
+from typing import Optional
+from PyQt5.QtWidgets import QMainWindow, QWidget
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+
+logger = logging.getLogger(__name__)
+
+# 导入重构后的管理器
+from ui.main_window_managers import (
+    WindowLayoutManager,
+    ComponentInitializer,
+    SettingsLoader,
+    EventCoordinator,
+    AuthorizationManager
+)
+
+
+class MainWindow(QMainWindow):
+    """
+    重构后的主窗口类 - 第二版
+
+    职责：
+    - 各个管理器的协调和集成
+    - 统一的事件处理接口
+    - 兼容性保证
+
+    重构说明：
+    - 原1221行的上帝类已拆分为5个专门管理器
+    - 使用组合模式保持向后兼容性
+    - 遵循单一职责原则
+    """
+
+    # 信号定义
+    config_changed = pyqtSignal(str, object)  # 配置变更信号
+    test_started = pyqtSignal()  # 测试开始信号
+    test_stopped = pyqtSignal()  # 测试停止信号
+
+    def __init__(self, config_manager, parent=None):
+        """
+        初始化重构后的主窗口
+
+        Args:
+            config_manager: 配置管理器
+            parent: 父窗口
+        """
+        super().__init__(parent)
+
+        self.config_manager = config_manager
+        self.is_testing = False
+
+        # 初始化重构后的5个管理器
+        self._initialize_refactored_managers()
+
+        # 初始化通信管理器
+        self.component_initializer.initialize_communication_manager()
+
+        # 初始化其他管理器
+        self.component_initializer.initialize_ui_managers()
+        self.component_initializer.initialize_device_managers()
+        self.component_initializer.initialize_printer_managers()
+
+        # 🔧 新增：初始化设置同步管理器
+        self._initialize_settings_sync_manager()
+
+        # 设置电池检测回调
+        self._setup_battery_detection_callbacks()
+
+        # 初始化界面
+        self._init_ui()
+
+        # 加载启动设置
+        self.settings_loader.load_startup_settings()
+
+        # 尝试自动连接设备
+        self._try_auto_connect()
+
+        logger.info("重构后的主窗口初始化完成")
+
+        # 🔧 修复：标记初始化完成，允许处理电池插入事件
+        self._initialization_complete = True
+
+        # 🔧 修复：添加电池检测模式状态管理
+        self._battery_detection_active = False  # 电池检测模式是否已激活（首次手动启动后）
+
+        print("🎯 主窗口初始化完成，准备显示窗口...")
+
+        # 延迟检查授权状态（确保UI组件已完全初始化）
+        QTimer.singleShot(1000, self.authorization_manager.check_license_on_startup)
+
+        # 🔧 初始化窗口状态监控定时器
+        self._init_window_monitor()
+
+    def _init_window_monitor(self):
+        """初始化窗口状态监控定时器"""
+        try:
+            # 创建定时器监控窗口状态
+            self.window_monitor_timer = QTimer()
+            self.window_monitor_timer.timeout.connect(self._check_window_status)
+            self.window_monitor_timer.start(5000)  # 每5秒检查一次
+            logger.info("✅ 窗口状态监控定时器已启动")
+        except Exception as e:
+            logger.error(f"❌ 初始化窗口监控失败: {e}")
+
+    def _check_window_status(self):
+        """检查窗口状态"""
+        try:
+            if self.isHidden() or self.isMinimized():
+                logger.warning(f"⚠️ 检测到窗口异常状态: hidden={self.isHidden()}, minimized={self.isMinimized()}")
+                # 强制显示窗口
+                self.showMaximized()
+                self.raise_()
+                self.activateWindow()
+                logger.info(f"✅ 窗口已强制恢复显示")
+        except Exception as e:
+            logger.error(f"❌ 检查窗口状态失败: {e}")
+
+    # ===== 兼容性方法 - 保持向后兼容 =====
+
+    def _initialize_managers(self):
+        """初始化各个管理器（兼容性方法 - 已重构为新的管理器架构）"""
+        logger.warning("调用了已重构的_initialize_managers方法，请使用新的管理器架构")
+        # 新的管理器已在__init__中初始化，此方法保留用于兼容性
+
+    def _initialize_refactored_managers(self):
+        """初始化重构后的5个管理器"""
+        try:
+            logger.info("🔧 初始化重构后的管理器...")
+
+            # 1. 窗口布局管理器
+            self.window_layout_manager = WindowLayoutManager(self, self.config_manager)
+
+            # 2. 组件初始化管理器
+            self.component_initializer = ComponentInitializer(self, self.config_manager)
+
+            # 3. 设置加载管理器
+            self.settings_loader = SettingsLoader(self, self.config_manager)
+
+            # 4. 事件协调器
+            self.event_coordinator = EventCoordinator(self, self.config_manager)
+
+            # 5. 授权管理器
+            self.authorization_manager = AuthorizationManager(self, self.config_manager)
+
+            logger.info("✅ 重构后的管理器初始化完成")
+
+        except Exception as e:
+            logger.error(f"❌ 初始化重构管理器失败: {e}")
+            raise
+    
+    def _init_communication_manager(self):
+        """初始化通信管理器"""
+        try:
+            from backend.communication_manager import CommunicationManager
+            
+            # 获取通信配置
+            comm_config = {
+                'port': self.config_manager.get('device.connection.port', 'COM16'),
+                'baudrate': self.config_manager.get('device.connection.baudrate', 115200),
+                'device_address': self.config_manager.get('device.connection.device_address', 1),
+                'timeout': self.config_manager.get('device.connection.timeout', 2.0)
+            }
+            
+            self.comm_manager = CommunicationManager(comm_config)
+            
+        except Exception as e:
+            logger.error(f"初始化通信管理器失败: {e}")
+    
+    # 旧的_initialize_managers方法已被重构为新的管理器架构
+    # 保留此注释以说明重构过程
+    
+    # 旧的_setup_manager_connections方法已被重构为新的管理器架构
+    # 信号连接现在在component_initializer.setup_signal_connections()中处理
+    
+    def _init_ui(self):
+        """初始化用户界面（使用重构后的管理器）"""
+        try:
+            # 1. 设置窗口属性
+            self.window_layout_manager.setup_window_properties()
+
+            # 2. 创建主布局
+            main_layout = self.window_layout_manager.create_main_layout()
+
+            # 3. 创建UI组件
+            self.component_initializer.create_ui_components(main_layout)
+
+            # 4. 创建菜单栏（需要先获取菜单管理器）
+            if hasattr(self, 'menu_manager'):
+                self.menu_manager.create_menu_bar()
+
+            # 5. 应用样式
+            self.window_layout_manager.apply_styles()
+
+            # 6. 设置信号连接
+            self.component_initializer.setup_signal_connections()
+
+            logger.info("用户界面初始化完成")
+
+        except Exception as e:
+            logger.error(f"初始化用户界面失败: {e}")
+    
+    def _create_ui_components(self, main_layout):
+        """创建UI组件"""
+        try:
+            # 创建精确比例布局容器
+            containers = self.window_layout_manager.create_proportional_layout(main_layout)
+
+            if not containers:
+                logger.error("创建比例布局失败")
+                return
+
+            # 创建顶部标题栏（在header容器中）
+            header_container = containers['header']
+            self.ui_component_manager.create_header_widget_in_container(header_container)
+
+            # 创建上层区域组件（在upper容器中）
+            upper_container = containers['upper']
+            upper_layout = self.window_layout_manager.create_upper_layout(upper_container)
+            self.ui_component_manager.create_upper_widgets(upper_layout)
+
+            # 设置上层区域比例
+            batch_widget = self.ui_component_manager.get_component('batch_info')
+            statistics_widget = self.ui_component_manager.get_component('statistics')
+            control_widget = self.ui_component_manager.get_component('test_control')
+
+            if all([batch_widget, statistics_widget, control_widget]):
+                self.window_layout_manager.setup_upper_widget_proportions(
+                    upper_layout, batch_widget, statistics_widget, control_widget
+                )
+
+            # 创建通道容器（分为两行）
+            channels_row1_container = containers['channels_row1']
+            channels_row2_container = containers['channels_row2']
+            self.ui_component_manager.create_split_channels_container(
+                channels_row1_container, channels_row2_container
+            )
+
+            # 创建状态栏
+            self.ui_component_manager.create_status_bar()
+
+            # 设置信号连接
+            self.ui_component_manager.setup_signal_connections()
+
+        except Exception as e:
+            logger.error(f"创建UI组件失败: {e}")
+    
+    def _setup_battery_detection_callbacks(self):
+        """设置电池检测回调函数"""
+        try:
+            if hasattr(self, 'battery_detection_manager'):
+                self.battery_detection_manager.set_callbacks(
+                    battery_removed_callback=self._on_battery_removed,
+                    new_battery_detected_callback=self._on_new_battery_detected,
+                    status_update_callback=self._on_battery_status_updated
+                )
+                logger.info("✅ 电池检测回调函数设置完成")
+            else:
+                logger.warning("⚠️ 电池检测管理器未找到，跳过回调设置")
+        except Exception as e:
+            logger.error(f"❌ 设置电池检测回调失败: {e}")
+
+    def _initialize_settings_sync_manager(self):
+        """初始化设置同步管理器"""
+        try:
+            logger.info("🔧 初始化设置同步管理器...")
+            
+            # 导入设置同步管理器
+            from ui.main_window_settings_sync import MainWindowSettingsSync
+            
+            # 创建设置同步管理器实例
+            self.settings_sync_manager = MainWindowSettingsSync(
+                main_window=self,
+                config_manager=self.config_manager,
+                parent=self
+            )
+            
+            # 连接同步完成和失败信号
+            self.settings_sync_manager.sync_completed.connect(self._on_settings_sync_completed)
+            self.settings_sync_manager.sync_failed.connect(self._on_settings_sync_failed)
+            
+            logger.info("✅ 设置同步管理器初始化完成")
+            
+        except Exception as e:
+            logger.error(f"❌ 初始化设置同步管理器失败: {e}")
+            # 不抛出异常，避免影响主窗口初始化
+
+    def _on_settings_sync_completed(self, message: str):
+        """设置同步完成处理"""
+        try:
+            logger.debug(f"设置同步完成: {message}")
+        except Exception as e:
+            logger.error(f"处理设置同步完成失败: {e}")
+
+    def _on_settings_sync_failed(self, sync_type: str, error_message: str):
+        """设置同步失败处理"""
+        try:
+            logger.warning(f"设置同步失败 [{sync_type}]: {error_message}")
+        except Exception as e:
+            logger.error(f"处理设置同步失败失败: {e}")
+
+    def _try_auto_connect(self):
+        """尝试自动连接设备"""
+        try:
+            self.device_connection_manager.auto_connect()
+        except Exception as e:
+            logger.error(f"自动连接设备失败: {e}")
+
+    def _load_startup_settings(self):
+        """
+        软件启动时加载所有设置（修复：启动时设置读取）
+        """
+        try:
+            logger.info("开始加载启动设置...")
+
+            # 1. 加载通道使能状态
+            self._load_channel_enable_settings()
+
+            # 2. 加载产品信息设置
+            self._load_product_info_settings()
+
+            # 3. 加载测试参数设置
+            self._load_test_parameter_settings()
+
+            # 4. 加载界面显示设置
+            self._load_ui_display_settings()
+
+            # 5. 加载离群检测设置
+            self._load_outlier_detection_settings()
+
+            # 6. 初始化打印机状态显示
+            self._initialize_printer_status()
+
+            # 7. 🔧 修复：加载历史统计数据
+            self._load_historical_statistics()
+
+            logger.info("启动设置加载完成")
+
+        except Exception as e:
+            logger.error(f"加载启动设置失败: {e}")
+
+    def _load_channel_enable_settings(self):
+        """加载通道使能状态设置"""
+        try:
+            # 获取启用的通道列表
+            enabled_channels = self.config_manager.get('test.enabled_channels', list(range(1, 9)))
+
+            # 更新通道容器的使能状态
+            channels_container = self.ui_component_manager.get_component('channels_container')
+            if channels_container:
+                for channel_num in range(1, 9):
+                    is_enabled = channel_num in enabled_channels
+                    if hasattr(channels_container, 'set_channel_enabled'):
+                        channels_container.set_channel_enabled(channel_num, is_enabled)
+
+                logger.info(f"通道使能状态已加载: {enabled_channels}")
+            else:
+                logger.warning("通道容器组件未找到，无法设置通道使能状态")
+
+        except Exception as e:
+            logger.error(f"加载通道使能设置失败: {e}")
+
+    def _load_product_info_settings(self):
+        """加载产品信息设置"""
+        try:
+            # 更新批次信息组件
+            batch_info = self.ui_component_manager.get_component('batch_info')
+            if batch_info and hasattr(batch_info, 'load_settings'):
+                batch_info.load_settings()
+                logger.info("产品信息设置已加载")
+            else:
+                logger.warning("批次信息组件未找到或不支持设置加载")
+
+        except Exception as e:
+            logger.error(f"加载产品信息设置失败: {e}")
+
+    def _load_test_parameter_settings(self):
+        """加载测试参数设置"""
+        try:
+            # 这里可以添加测试参数的加载逻辑
+            # 例如：频率设置、阻抗范围、档位配置等
+            logger.debug("测试参数设置加载完成")
+
+        except Exception as e:
+            logger.error(f"加载测试参数设置失败: {e}")
+
+    def _load_ui_display_settings(self):
+        """加载界面显示设置"""
+        try:
+            # 这里可以添加界面显示相关的设置加载
+            # 例如：主题、字体、布局等
+            logger.debug("界面显示设置加载完成")
+
+        except Exception as e:
+            logger.error(f"加载界面显示设置失败: {e}")
+
+    def _load_outlier_detection_settings(self):
+        """加载离群检测设置"""
+        try:
+            # 获取离群检测配置
+            try:
+                from backend.outlier_detection_manager import OutlierDetectionManager
+                outlier_manager = OutlierDetectionManager()
+                config = outlier_manager.get_detection_config()
+
+                enabled = config.get('is_enabled', False)
+
+                # 更新所有通道的离群检测状态
+                channels_container = self.ui_component_manager.get_component('channels_container')
+                if channels_container and hasattr(channels_container, 'update_all_outlier_detection_status'):
+                    channels_container.update_all_outlier_detection_status(enabled)
+                    logger.info(f"离群检测设置已加载: {'启用' if enabled else '禁用'}")
+                else:
+                    logger.warning("通道容器组件未找到，无法设置离群检测状态")
+
+            except Exception as e:
+                logger.warning(f"获取离群检测配置失败: {e}，使用默认禁用状态")
+                # 默认禁用状态
+                channels_container = self.ui_component_manager.get_component('channels_container')
+                if channels_container and hasattr(channels_container, 'update_all_outlier_detection_status'):
+                    channels_container.update_all_outlier_detection_status(False)
+
+        except Exception as e:
+            logger.error(f"加载离群检测设置失败: {e}")
+
+    def _initialize_printer_status(self):
+        """初始化打印机状态显示"""
+        try:
+            # 手动触发一次打印机状态检查和UI更新
+            if hasattr(self, 'printer_manager'):
+                # 获取当前打印机状态
+                current_status = self.printer_manager.get_current_status()
+                printer_info = self.printer_manager.get_printer_status()
+
+                # 更新UI显示
+                self.ui_component_manager.update_printer_status(current_status, printer_info)
+
+                logger.info(f"打印机状态初始化完成: {'已连接' if current_status else '未连接'}")
+            else:
+                logger.warning("打印机管理器未找到，无法初始化打印机状态")
+
+        except Exception as e:
+            logger.error(f"初始化打印机状态失败: {e}")
+
+    def _load_historical_statistics(self):
+        """🔧 修复：加载历史统计数据"""
+        try:
+            logger.info("📊 主窗口：开始加载历史统计数据...")
+
+            # 获取统计组件
+            statistics_widget = self.ui_component_manager.get_component('statistics')
+            if statistics_widget and hasattr(statistics_widget, 'refresh_statistics'):
+                statistics_widget.refresh_statistics()
+                logger.info("✅ 历史统计数据加载完成")
+            else:
+                logger.warning("⚠️ 统计组件未找到或不支持刷新功能")
+
+        except Exception as e:
+            logger.error(f"❌ 加载历史统计数据失败: {e}")
+
+    # ===== 事件处理方法（使用事件协调器） =====
+
+    def _on_device_connection_changed(self, connected: bool):
+        """设备连接状态变更处理"""
+        self.event_coordinator.handle_device_connection_changed(connected)
+
+        # 🔧 新增：设备连接状态变更时处理电池检测
+        if connected:
+            self._start_battery_detection_on_connection()
+        else:
+            self._stop_battery_detection_on_disconnection()
+
+    def _start_battery_detection_on_connection(self):
+        """设备连接后启动电池检测"""
+        try:
+            # 检查是否启用自动侦测
+            auto_detect = self.config_manager.get('test.auto_detect', True)
+            if not auto_detect:
+                logger.info("自动侦测未启用，跳过电池检测启动")
+                return
+
+            # 延迟启动电池检测，确保设备连接稳定
+            QTimer.singleShot(3000, self._do_start_battery_detection)
+
+        except Exception as e:
+            logger.error(f"设备连接后启动电池检测失败: {e}")
+
+    def _do_start_battery_detection(self):
+        """实际启动电池检测"""
+        try:
+            if hasattr(self, 'battery_detection_manager'):
+                # 获取启用的通道
+                enabled_channels = self.config_manager.get('test.enabled_channels', list(range(1, 9)))
+
+                # 启动电池检测
+                self.battery_detection_manager.start_detection(enabled_channels)
+                logger.info(f"✅ 设备连接后电池检测已启动，监控通道: {enabled_channels}")
+            else:
+                logger.warning("⚠️ 电池检测管理器未找到")
+
+        except Exception as e:
+            logger.error(f"启动电池检测失败: {e}")
+
+    def _stop_battery_detection_on_disconnection(self):
+        """设备断开连接后停止电池检测"""
+        try:
+            if hasattr(self, 'battery_detection_manager'):
+                self.battery_detection_manager.stop_detection()
+                logger.info("✅ 设备断开连接，电池检测已停止")
+
+        except Exception as e:
+            logger.error(f"停止电池检测失败: {e}")
+
+    def _on_device_info_updated(self, device_info: dict):
+        """设备信息更新处理"""
+        self.event_coordinator.handle_device_info_updated(device_info)
+
+    def _on_test_started(self):
+        """测试开始处理"""
+        self.event_coordinator.handle_test_started()
+
+    def _on_test_stopped(self):
+        """测试停止处理"""
+        self.event_coordinator.handle_test_stopped()
+
+    def _on_test_progress_updated(self, channel_num: int, progress_data: dict):
+        """测试进度更新处理"""
+        self.event_coordinator.handle_test_progress_updated(channel_num, progress_data)
+
+    def _on_test_failed(self, error_message: str):
+        """测试失败处理"""
+        self.event_coordinator.handle_test_failed(error_message)
+
+    def _on_component_ready(self, component_name: str):
+        """组件就绪处理"""
+        self.event_coordinator.handle_component_ready(component_name)
+
+    def _on_component_error(self, component_name: str, error_msg: str):
+        """组件错误处理"""
+        self.event_coordinator.handle_component_error(component_name, error_msg)
+    
+    # ===== 兼容性方法 =====
+    
+    def _on_start_test(self):
+        """开始测试（兼容性方法）"""
+        self.test_flow_manager.start_test()
+    
+    def _on_stop_test(self):
+        """停止测试（兼容性方法）"""
+        # 🔧 调试：添加详细的停止日志
+        logger.info("🛑 主窗口._on_stop_test() 被调用！开始停止测试流程...")
+        self.test_flow_manager.stop_test()
+        logger.info("✅ 主窗口._on_stop_test() 调用完成")
+    
+    def _on_clear_statistics(self):
+        """清空统计（兼容性方法）"""
+        self.ui_component_manager.clear_test_data()
+    
+    def _on_export_data(self):
+        """导出数据（兼容性方法）"""
+        self.menu_manager._on_export_data()
+    
+    def _on_open_settings(self):
+        """打开设置（兼容性方法）"""
+        self.menu_manager._on_open_settings()
+    
+    def _on_channel_test_completed(self, channel_num: int, result_data: dict):
+        """通道测试完成处理"""
+        try:
+            logger.info(f"通道{channel_num}测试完成")
+
+            # 触发标签打印（如果启用）
+            self._trigger_label_print(channel_num, result_data)
+
+        except Exception as e:
+            logger.error(f"处理通道{channel_num}测试完成失败: {e}")
+
+    def _trigger_label_print(self, channel_num: int, result_data: dict):
+        """触发标签打印"""
+        try:
+            # 检查是否启用自动打印或者是否有手动打印需求
+            if not self.label_print_manager.is_auto_print_enabled():
+                logger.debug(f"通道{channel_num}自动打印未启用，跳过标签打印")
+                return
+
+            # 检查打印机是否就绪
+            if not self.label_print_manager.is_printer_ready():
+                logger.warning(f"通道{channel_num}打印机未就绪，无法打印标签")
+                return
+
+            # 准备测试结果数据
+            test_result = self._prepare_print_data(channel_num, result_data)
+
+            # 添加到打印队列
+            job_id = self.label_print_manager.print_test_result(test_result)
+
+            if job_id:
+                logger.info(f"通道{channel_num}标签打印任务已添加: {job_id}")
+            else:
+                logger.warning(f"通道{channel_num}标签打印任务添加失败")
+
+        except Exception as e:
+            logger.error(f"触发通道{channel_num}标签打印失败: {e}")
+
+    def _prepare_print_data(self, channel_num: int, result_data: dict) -> dict:
+        """准备打印数据"""
+        try:
+            # 获取电池码
+            battery_code = result_data.get('battery_code', f'CH{channel_num}-{int(time.time())}')
+
+            # 如果没有电池码，尝试从其他地方获取
+            if not battery_code or battery_code.startswith('CH'):
+                # 尝试从测试流程管理器获取
+                if hasattr(self, 'test_flow_manager') and hasattr(self.test_flow_manager, 'battery_codes'):
+                    battery_codes = getattr(self.test_flow_manager, 'battery_codes', {})
+                    battery_code = battery_codes.get(channel_num, f'AUTO-{channel_num}-{int(time.time())}')
+
+            # 准备标签打印数据
+            rs_grade = result_data.get('rs_grade', 1)
+            rct_grade = result_data.get('rct_grade', 1)
+            grade_result = f"{rs_grade}-{rct_grade}"  # 生成档位结果格式：Rs档位-Rct档位
+
+            # 获取时间戳（支持多种字段名）
+            timestamp = result_data.get('timestamp')
+            if not timestamp:
+                # 如果没有timestamp，尝试从test_time获取
+                test_time = result_data.get('test_time')
+                if test_time:
+                    # 如果test_time是ISO格式字符串，转换为datetime对象
+                    if isinstance(test_time, str):
+                        try:
+                            timestamp = datetime.fromisoformat(test_time.replace('Z', '+00:00'))
+                        except ValueError:
+                            timestamp = datetime.now()
+                    else:
+                        timestamp = test_time
+                else:
+                    timestamp = datetime.now()
+
+            # 🔧 修复：正确获取Rs和Rct值，处理字段名不匹配问题
+            # 通道显示组件使用'rs'和'rct'字段名，而不是'rs_value'和'rct_value'
+            rs_value = result_data.get('rs_value', result_data.get('rs', 0.0))
+            rct_value = result_data.get('rct_value', result_data.get('rct', 0.0))
+            voltage = result_data.get('voltage', 0.0)
+
+            print_data = {
+                'channel_number': channel_num,
+                'battery_code': battery_code,
+                'voltage': voltage,
+                'rs_value': rs_value,
+                'rct_value': rct_value,
+                'rs_grade': rs_grade,
+                'rct_grade': rct_grade,
+                'grade_result': grade_result,
+                'is_pass': result_data.get('is_pass', False),
+                'fail_reason': result_data.get('fail_reason', ''),
+                'test_duration': result_data.get('test_duration', 0),
+                'timestamp': timestamp
+            }
+
+            logger.info(f"通道{channel_num}打印数据准备完成: {battery_code} "
+                        f"Rs={rs_value:.3f}mΩ Rct={rct_value:.3f}mΩ 档位={rs_grade}-{rct_grade}")
+
+            return print_data
+
+        except Exception as e:
+            logger.error(f"准备通道{channel_num}打印数据失败: {e}")
+            # 返回基本数据
+            return {
+                'channel_number': channel_num,
+                'battery_code': f'ERROR-{channel_num}',
+                'voltage': 0.0,
+                'rs_value': 0.0,
+                'rct_value': 0.0,
+                'rs_grade': 1,
+                'rct_grade': 1,
+                'grade_result': '1-1',
+                'is_pass': False,
+                'timestamp': datetime.now()
+            }
+    
+    def _on_channel_battery_code_changed(self, channel_num: int, battery_code: str):
+        """通道电池码变更（兼容性方法）"""
+        # 通道电池码设置 - 运行时不输出日志
+        pass
+    
+    def _on_all_channels_ready(self):
+        """所有通道就绪处理"""
+        try:
+            logger.info("🎯 _on_all_channels_ready方法被调用")
+
+            # 🔧 修复：添加重复调用检查，避免多次处理
+            if hasattr(self, '_all_channels_ready_processed') and self._all_channels_ready_processed:
+                logger.debug("所有通道就绪已处理过，跳过重复处理")
+                return
+
+            self._all_channels_ready_processed = True
+            logger.info("所有通道测试完成")
+
+            # 更新状态栏显示
+            status_bar = self.ui_component_manager.get_component('status_bar')
+            if status_bar and hasattr(status_bar, 'set_system_status'):
+                status_bar.set_system_status("所有通道测试完成", "success")
+
+            # 检查当前测试模式，如果是手动模式则重置按钮状态
+            self._handle_manual_mode_completion()
+
+            # 检查是否需要停止测试（只有在非连续测试模式下才停止）
+            self._handle_test_completion_stop()
+
+            # 🔧 修复：延迟重置标志，允许下次测试时重新处理
+            QTimer.singleShot(5000, self._reset_all_channels_ready_flag)
+
+        except Exception as e:
+            logger.error(f"处理所有通道就绪失败: {e}")
+            # 确保重置标志，避免卡住
+            if hasattr(self, '_all_channels_ready_processed'):
+                self._all_channels_ready_processed = False
+
+    def _reset_all_channels_ready_flag(self):
+        """重置所有通道就绪标志"""
+        try:
+            self._all_channels_ready_processed = False
+            logger.debug("所有通道就绪标志已重置，允许下次测试处理")
+        except Exception as e:
+            logger.error(f"重置所有通道就绪标志失败: {e}")
+
+    def _handle_manual_mode_completion(self):
+        """处理手动模式测试完成"""
+        try:
+            # 🔧 整合：统一使用continuous_mode配置
+            continuous_mode = self.config_manager.get('test.continuous_mode', False)
+            auto_detect = self.config_manager.get('test.auto_detect', True)
+
+            logger.info(f"🔧 检查测试模式: 连续测试={continuous_mode}, 自动侦测={auto_detect}")
+
+            # 判断是否为手动模式（既不是连续测试也不是自动侦测）
+            is_manual_mode = not continuous_mode and not auto_detect
+
+            logger.info(f"🎯 测试模式判断: 手动模式={is_manual_mode}")
+
+            if is_manual_mode:
+                logger.info("✅ 检测到手动模式，重置测试按钮状态")
+
+                # 通知测试控制组件测试完成（用于手动模式处理）
+                test_control = self.ui_component_manager.get_component('test_control')
+                if test_control and hasattr(test_control, 'on_test_completed'):
+                    logger.info("🔄 调用测试控制组件的on_test_completed方法")
+                    test_control.on_test_completed()
+                    logger.info("✅ 已通知测试控制组件重置按钮状态（手动模式）")
+                else:
+                    logger.warning("❌ 无法获取测试控制组件或组件没有on_test_completed方法")
+            else:
+                logger.info(f"ℹ️ 非手动模式，跳过按钮状态重置（连续测试: {continuous_mode}, 自动侦测: {auto_detect}）")
+
+                # 🔧 修复：在自动侦测模式下，确保UI状态正确同步
+                if auto_detect and not continuous_mode:
+                    logger.info("🔧 自动侦测模式：确保UI状态正确同步")
+                    test_control = self.ui_component_manager.get_component('test_control')
+                    if test_control and hasattr(test_control, '_update_test_mode_status'):
+                        test_control._update_test_mode_status()
+                        logger.info("✅ 已同步自动侦测模式UI状态")
+
+        except Exception as e:
+            logger.error(f"处理手动模式测试完成失败: {e}")
+
+    def _handle_test_completion_stop(self):
+        """处理测试完成后的停止逻辑"""
+        try:
+            # 🔧 整合：统一使用continuous_mode配置
+            continuous_mode = self.config_manager.get('test.continuous_mode', False)
+            auto_detect = self.config_manager.get('test.auto_detect', True)
+
+            logger.info(f"🔧 检查是否需要停止测试: 连续测试={continuous_mode}, 自动侦测={auto_detect}")
+
+            # 判断是否为手动模式
+            is_manual_mode = not continuous_mode and not auto_detect
+
+            if is_manual_mode:
+                logger.info("✅ 检测到手动模式，但按钮状态已在on_test_completed中处理，只需停止测试流程")
+                # 手动模式下，按钮状态已经在 on_test_completed 中正确设置
+                # 这里只需要停止测试流程，不要再调用 _on_stop_test() 避免重复设置按钮状态
+                if self.is_testing:
+                    # 直接更新测试状态，不通过UI组件
+                    self.is_testing = False
+                    # 通过测试流程管理器停止测试
+                    self.test_flow_manager.stop_test()
+                    logger.info("手动模式：测试流程已停止，按钮状态保持on_test_completed中的设置")
+            else:
+                logger.info(f"ℹ️ 连续测试或自动侦测模式，不停止测试（连续测试: {continuous_mode}, 自动侦测: {auto_detect}）")
+
+                # 🔧 修复：在自动侦测模式下，测试完成后进行完整的状态重置
+                if auto_detect and not continuous_mode:
+                    logger.info("✅ 自动侦测模式：测试完成，开始完整状态重置")
+                    self._complete_auto_detect_test_reset()
+
+        except Exception as e:
+            logger.error(f"处理测试完成停止逻辑失败: {e}")
+
+    def _complete_auto_detect_test_reset(self):
+        """自动侦测模式下的完整测试重置"""
+        try:
+            logger.info("🔄 自动侦测模式：开始完整测试重置...")
+
+            # 1. 重置主窗口测试状态
+            self.is_testing = False
+
+            # 2. 清理自动测试启动标志
+            if hasattr(self, '_auto_test_starting'):
+                self._auto_test_starting = False
+                logger.debug("已清理自动测试启动标志")
+
+            # 3. 重置测试流程管理器状态
+            if hasattr(self, 'test_flow_manager') and self.test_flow_manager:
+                try:
+                    # 确保测试流程管理器停止
+                    self.test_flow_manager.stop_test()
+
+                    # 重置测试流程管理器状态
+                    if hasattr(self.test_flow_manager, 'is_testing'):
+                        self.test_flow_manager.is_testing = False
+
+                    # 重置测试流程管理器内部状态
+                    self._reset_test_flow_manager_state()
+
+                    logger.debug("测试流程管理器状态已重置")
+                except Exception as e:
+                    logger.error(f"重置测试流程管理器状态失败: {e}")
+
+            # 4. 执行状态清理
+            self._clean_test_states_for_auto_detect()
+
+            # 🔧 修复：标记电池检测管理器中的测试完成状态
+            self._mark_battery_detection_test_completed()
+
+            # 🔧 修复：电池检测模式下不自动重启电池检测，但保持激活状态
+            # 测试完成后应该等待用户移除电池，然后检测到电池移除事件后才进入下一轮检测
+            logger.info("🔧 电池检测模式：测试完成，等待用户移除电池")
+            logger.info(f"🔧 电池检测模式激活状态: {self._battery_detection_active}")
+
+            # 更新状态栏提示用户移除电池
+            try:
+                status_bar = self.ui_component_manager.get_component('status_bar')
+                if status_bar and hasattr(status_bar, 'set_system_status'):
+                    if self._battery_detection_active:
+                        status_bar.set_system_status("测试完成，请移除电池后插入新电池", "success")
+                    else:
+                        status_bar.set_system_status("测试完成，请移除电池", "success")
+            except Exception as e:
+                logger.error(f"更新状态栏提示失败: {e}")
+
+            logger.info("✅ 自动侦测模式完整测试重置完成")
+
+        except Exception as e:
+            logger.error(f"自动侦测模式完整测试重置失败: {e}")
+
+    def _clean_test_states_for_auto_detect(self):
+        """为自动侦测模式清理测试状态"""
+        try:
+            logger.debug("🧹 开始清理测试状态...")
+
+            # 获取通道组件
+            channel_widgets = []
+            if hasattr(self, 'ui_component_manager'):
+                channel_display = self.ui_component_manager.get_component('channel_display')
+                if channel_display and hasattr(channel_display, 'channel_widgets'):
+                    channel_widgets = list(channel_display.channel_widgets.values())
+
+            # 使用测试状态清理器
+            if channel_widgets:
+                try:
+                    from backend.test_state_cleaner import TestStateCleaner
+                    cleaner = TestStateCleaner()
+                    success = cleaner.clean_all_test_states(channel_widgets)
+                    if success:
+                        logger.debug("✅ 测试状态清理成功")
+                    else:
+                        logger.warning("⚠️ 测试状态清理部分失败")
+                except Exception as e:
+                    logger.error(f"使用测试状态清理器失败: {e}")
+
+        except Exception as e:
+            logger.error(f"清理测试状态失败: {e}")
+
+    def _reset_test_flow_manager_state(self):
+        """重置测试流程管理器的内部状态"""
+        try:
+            logger.debug("🔄 重置测试流程管理器内部状态...")
+
+            # 重置测试流程控制器状态
+            if hasattr(self.test_flow_manager, 'test_flow_controller') and self.test_flow_manager.test_flow_controller:
+                controller = self.test_flow_manager.test_flow_controller
+
+                # 重置控制器状态
+                if hasattr(controller, 'is_testing'):
+                    controller.is_testing = False
+                if hasattr(controller, 'current_state'):
+                    controller.current_state = 'idle'  # 使用字符串而不是枚举
+                if hasattr(controller, 'stop_event'):
+                    controller.stop_event.clear()
+
+                # 清理测试状态
+                if hasattr(controller, '_cleanup_test_state'):
+                    controller._cleanup_test_state()
+
+                logger.debug("测试流程控制器状态已重置")
+
+            # 重置其他可能的状态标志
+            if hasattr(self.test_flow_manager, '_test_state'):
+                self.test_flow_manager._test_state = 'idle'
+
+            # 清理可能的测试线程引用
+            if hasattr(self.test_flow_manager, 'test_thread'):
+                self.test_flow_manager.test_thread = None
+
+            logger.debug("✅ 测试流程管理器内部状态重置完成")
+
+        except Exception as e:
+            logger.error(f"重置测试流程管理器内部状态失败: {e}")
+
+    def _mark_battery_detection_test_completed(self):
+        """标记电池检测管理器中的测试完成状态"""
+        try:
+            if hasattr(self, 'battery_detection_manager') and self.battery_detection_manager:
+                # 获取启用的通道
+                enabled_channels = self.config_manager.get('test.enabled_channels', list(range(1, 9)))
+
+                # 标记所有启用通道的测试完成
+                for channel_num in enabled_channels:
+                    self.battery_detection_manager.mark_test_completed(channel_num)
+
+                logger.info(f"已标记通道{enabled_channels}测试完成，等待电池移除")
+            else:
+                logger.debug("电池检测管理器未找到，跳过测试完成标记")
+        except Exception as e:
+            logger.error(f"标记电池检测测试完成失败: {e}")
+
+    def _restart_battery_detection_after_test(self):
+        """测试完成后重新启动电池检测（兼容性方法）"""
+        try:
+            logger.info("🔄 测试完成，重新启动电池检测...")
+
+            # 延迟重启电池检测，给系统一些时间完成清理
+            QTimer.singleShot(2000, self._do_restart_battery_detection)
+
+        except Exception as e:
+            logger.error(f"重新启动电池检测失败: {e}")
+
+    def _do_restart_battery_detection(self):
+        """实际执行电池检测重启"""
+        try:
+            if hasattr(self, 'battery_detection_manager'):
+                # 先停止当前的电池检测
+                try:
+                    self.battery_detection_manager.stop_detection()
+                    logger.debug("已停止当前电池检测")
+                except Exception as e:
+                    logger.debug(f"停止电池检测时出现异常（可能已停止）: {e}")
+
+                # 短暂延迟确保停止完成
+                import time
+                time.sleep(0.1)
+
+                # 获取启用的通道
+                enabled_channels = self.config_manager.get('test.enabled_channels', list(range(1, 9)))
+
+                # 重新启动电池检测
+                self.battery_detection_manager.start_detection(enabled_channels)
+                logger.info(f"✅ 电池检测已重新启动，监控通道: {enabled_channels}")
+            else:
+                logger.warning("⚠️ 电池检测管理器未找到，无法重新启动")
+
+        except Exception as e:
+            logger.error(f"执行电池检测重启失败: {e}")
+
+    def _on_device_status_changed(self, connected: bool):
+        """设备状态变更（兼容性方法）"""
+        logger.debug(f"设备状态: {'已连接' if connected else '未连接'}")
+
+    # ===== 电池检测回调方法 =====
+
+    def _on_battery_removed(self, channel_num: int, voltage: float):
+        """电池移除回调处理（线程安全版本）"""
+        try:
+            logger.info(f"🔋 主窗口收到电池移除事件: 通道{channel_num}, 电压{voltage:.3f}V")
+
+            # 🔧 修复：确保在主线程中执行UI操作
+            if not self._is_main_thread():
+                logger.debug(f"非主线程调用电池移除，转发到主线程: 通道{channel_num}")
+                try:
+                    QTimer.singleShot(0, lambda: self._on_battery_removed_main_thread(channel_num, voltage))
+                    return
+                except Exception as signal_error:
+                    logger.error(f"电池移除信号转发失败: {signal_error}")
+                    # 继续在当前线程执行，但要小心
+
+            self._on_battery_removed_main_thread(channel_num, voltage)
+
+        except Exception as e:
+            logger.error(f"处理电池移除事件失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    def _on_battery_removed_main_thread(self, channel_num: int, voltage: float):
+        """在主线程中处理电池移除事件"""
+        try:
+            logger.debug(f"在主线程中处理电池移除: 通道{channel_num}, 电压{voltage:.3f}V")
+
+            # 通知通道显示组件更新状态
+            try:
+                channels_container = self.ui_component_manager.get_component('channels_container')
+                if channels_container:
+                    channel_widget = channels_container.get_channel(channel_num)
+                    if channel_widget and hasattr(channel_widget, 'on_battery_removed'):
+                        channel_widget.on_battery_removed()
+                        logger.debug(f"通道{channel_num}电池移除UI更新成功")
+                    else:
+                        logger.debug(f"通道{channel_num}组件不存在或无on_battery_removed方法")
+                else:
+                    logger.debug("通道容器组件未找到")
+            except Exception as ui_error:
+                logger.error(f"更新通道{channel_num}电池移除UI失败: {ui_error}")
+                import traceback
+                logger.error(f"UI更新详细错误: {traceback.format_exc()}")
+                # 不重新抛出异常，避免闪退
+
+        except Exception as e:
+            logger.error(f"主线程处理电池移除事件失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    def _on_new_battery_detected(self, channel_num: int, voltage: float):
+        """新电池检测回调处理（线程安全版本）"""
+        try:
+            logger.info(f"🔋 主窗口收到新电池检测事件: 通道{channel_num}, 电压{voltage:.3f}V")
+
+            # 🔧 修复：确保在主线程中执行UI操作
+            if not self._is_main_thread():
+                logger.info(f"🔄 检测到非主线程调用，转发到主线程: 通道{channel_num}")
+                # 🔧 修复：使用更安全的方式避免lambda闭包问题
+                try:
+                    # 使用 functools.partial 来避免闭包问题
+                    from functools import partial
+                    delayed_call = partial(self._on_new_battery_detected_main_thread, channel_num, voltage)
+
+                    # 🔧 修复：确保程序完全启动后再处理电池插入事件
+                    if hasattr(self, '_initialization_complete') and self._initialization_complete:
+                        QTimer.singleShot(0, delayed_call)
+                        logger.info(f"✅ 已安排主线程处理: 通道{channel_num}")
+                    else:
+                        # 程序还在初始化中，延迟处理
+                        QTimer.singleShot(2000, delayed_call)  # 延迟2秒
+                        logger.info(f"⏰ 程序初始化中，延迟安排主线程处理: 通道{channel_num}")
+                    return
+                except Exception as signal_error:
+                    logger.error(f"信号转发失败: {signal_error}")
+                    # 继续在当前线程执行，但要小心
+
+            self._on_new_battery_detected_main_thread(channel_num, voltage)
+
+        except Exception as e:
+            logger.error(f"处理新电池检测事件失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    def _on_new_battery_detected_main_thread(self, channel_num: int, voltage: float):
+        """在主线程中处理新电池检测事件"""
+        try:
+            # 🔧 修复：改为INFO级别，确保能看到日志
+            logger.info(f"📱 在主线程中处理新电池检测: 通道{channel_num}, 电压{voltage:.3f}V")
+            logger.info(f"🔧 当前线程是否为主线程: {self._is_main_thread()}")
+
+            # 检查是否启用自动侦测模式
+            auto_detect = self.config_manager.get('test.auto_detect', True)
+            logger.info(f"🔧 自动侦测模式配置: {auto_detect}")
+            if not auto_detect:
+                logger.info("自动侦测模式未启用，跳过自动测试启动")
+                return
+
+            # 检查当前是否正在测试
+            logger.info(f"🔧 当前测试状态: is_testing={self.is_testing}")
+            if self.is_testing:
+                logger.info("当前正在测试中，跳过自动测试启动")
+                return
+
+            # 🔧 修复：电池检测模式智能启动逻辑
+            logger.info(f"🔋 电池检测模式：检测到通道{channel_num}新电池插入")
+
+            # 更新电池状态显示
+            try:
+                # 更新通道显示组件中的电池状态
+                channels_container = self.ui_component_manager.get_component('channels_container')
+                if channels_container:
+                    channel_widget = channels_container.get_channel(channel_num)
+                    if channel_widget and hasattr(channel_widget, 'on_new_battery_detected'):
+                        channel_widget.on_new_battery_detected()
+                        logger.info(f"✅ 已更新通道{channel_num}电池状态显示")
+
+                # 更新状态栏显示
+                status_bar = self.ui_component_manager.get_component('status_bar')
+                if status_bar and hasattr(status_bar, 'set_battery_status'):
+                    status_bar.set_battery_status(channel_num, 'connected', voltage)
+                    logger.info(f"✅ 已更新状态栏电池状态显示")
+
+            except Exception as ui_error:
+                logger.error(f"更新UI状态失败: {ui_error}")
+
+            # 🔧 修复：根据电池检测模式状态决定是否自动启动测试
+            if self._battery_detection_active:
+                # 电池检测模式已激活，自动启动测试
+                logger.info("🔧 电池检测模式已激活，自动启动测试")
+                try:
+                    status_bar = self.ui_component_manager.get_component('status_bar')
+                    if status_bar and hasattr(status_bar, 'set_system_status'):
+                        status_bar.set_system_status(f"通道{channel_num}检测到新电池，自动启动测试", "info")
+
+                    # 延迟启动自动测试（给系统一些时间稳定）
+                    QTimer.singleShot(1000, self._start_auto_test_for_new_battery_safe)
+                    logger.info(f"✅ 已安排延迟启动自动测试 - 通道{channel_num}")
+                except Exception as timer_error:
+                    logger.error(f"安排延迟测试启动失败: {timer_error}")
+            else:
+                # 电池检测模式未激活，等待用户手动启动
+                logger.info("🔧 电池检测模式未激活，等待用户手动启动测试")
+                try:
+                    status_bar = self.ui_component_manager.get_component('status_bar')
+                    if status_bar and hasattr(status_bar, 'set_system_status'):
+                        status_bar.set_system_status(f"通道{channel_num}检测到新电池，请点击开始测试", "info")
+                except Exception as e:
+                    logger.error(f"更新状态栏提示失败: {e}")
+
+        except Exception as e:
+            logger.error(f"主线程处理新电池检测事件失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    def _on_battery_status_updated(self, channel_num: int, status: str, voltage: float):
+        """电池状态更新回调处理（线程安全版本）"""
+        try:
+            logger.debug(f"通道{channel_num}电池状态更新: {status}, 电压{voltage:.3f}V")
+
+            # 🔧 修复：确保在主线程中执行UI操作
+            if not self._is_main_thread():
+                logger.debug(f"非主线程调用电池状态更新，转发到主线程: 通道{channel_num}")
+                try:
+                    # 🔧 修复：使用functools.partial避免lambda变量作用域问题
+                    from functools import partial
+                    callback = partial(self._on_battery_status_updated_main_thread, channel_num, status, voltage)
+                    QTimer.singleShot(0, callback)
+                    logger.debug(f"✅ 状态更新已转发到主线程: 通道{channel_num}")
+                    return
+                except Exception as signal_error:
+                    logger.error(f"状态更新信号转发失败: {signal_error}")
+                    import traceback
+                    logger.error(f"转发失败详细错误: {traceback.format_exc()}")
+                    # 继续在当前线程执行，但要小心
+
+            self._on_battery_status_updated_main_thread(channel_num, status, voltage)
+
+        except Exception as e:
+            logger.error(f"处理电池状态更新失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    def _on_battery_status_updated_main_thread(self, channel_num: int, status: str, voltage: float):
+        """在主线程中处理电池状态更新"""
+        try:
+            logger.info(f"🔋 在主线程中更新通道{channel_num}电池状态: {status}, 电压{voltage:.3f}V")
+            logger.debug(f"🔧 当前线程: {self._is_main_thread()}, 参数: channel_num={channel_num}, status={status}, voltage={voltage}")
+
+            # 🔧 修复：更新通道卡片的电池状态显示，增强错误处理和备用方案
+            ui_update_success = False
+            try:
+                channels_container = self.ui_component_manager.get_component('channels_container')
+                if channels_container:
+                    channel_widget = channels_container.get_channel(channel_num)
+                    if channel_widget and hasattr(channel_widget, 'update_battery_status'):
+                        channel_widget.update_battery_status(status, voltage)
+                        logger.info(f"✅ 通道{channel_num}状态UI更新成功: {status}")
+                        ui_update_success = True
+                    else:
+                        logger.warning(f"⚠️ 通道{channel_num}组件不存在或无update_battery_status方法")
+                else:
+                    logger.warning("⚠️ 通道容器组件未找到")
+            except Exception as ui_error:
+                logger.error(f"❌ 更新通道{channel_num}电池状态UI失败: {ui_error}")
+                import traceback
+                logger.error(f"UI更新详细错误: {traceback.format_exc()}")
+
+            # 🔧 修复：如果主要方法失败，尝试备用更新方法
+            if not ui_update_success:
+                logger.info(f"🔧 尝试备用方法更新通道{channel_num}状态")
+                self._fallback_update_channel_status(channel_num, status, voltage)
+
+            # 更新状态栏显示
+            try:
+                status_bar = self.ui_component_manager.get_component('status_bar')
+                if status_bar and hasattr(status_bar, 'set_battery_status'):
+                    status_bar.set_battery_status(channel_num, status, voltage)
+                    logger.debug(f"✅ 状态栏电池状态更新成功")
+            except Exception as status_error:
+                logger.error(f"❌ 更新状态栏电池状态失败: {status_error}")
+
+        except Exception as e:
+            logger.error(f"❌ 主线程处理电池状态更新失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    def _fallback_update_channel_status(self, channel_num: int, status: str, voltage: float):
+        """备用的通道状态更新方法"""
+        try:
+            logger.debug(f"🔧 尝试备用方法更新通道{channel_num}状态")
+
+            # 尝试直接查找通道组件
+            for widget in self.findChildren(QWidget):
+                if hasattr(widget, 'channel_number') and widget.channel_number == channel_num:
+                    if hasattr(widget, 'update_battery_status'):
+                        widget.update_battery_status(status, voltage)
+                        logger.info(f"✅ 备用方法成功更新通道{channel_num}状态")
+                        return
+
+            logger.warning(f"⚠️ 备用方法也无法找到通道{channel_num}组件")
+
+        except Exception as e:
+            logger.error(f"❌ 备用状态更新方法失败: {e}")
+
+    def _start_auto_test_for_new_battery(self):
+        """为新电池启动自动测试（保留兼容性）"""
+        self._start_auto_test_for_new_battery_safe()
+
+    def _start_auto_test_for_new_battery_safe(self):
+        """为新电池启动自动测试（安全版本）"""
+        try:
+            logger.info("🚀 检测到新电池，启动自动测试...")
+
+            # 🔧 修复：确保在主线程中执行
+            if not self._is_main_thread():
+                logger.debug("非主线程调用，转发到主线程")
+                QTimer.singleShot(0, self._start_auto_test_for_new_battery_safe)
+                return
+
+            # 🔧 修复：添加状态检查，防止重复启动
+            if hasattr(self, '_auto_test_starting') and self._auto_test_starting:
+                logger.info("自动测试启动中，跳过重复请求")
+                return
+
+            self._auto_test_starting = True
+
+            try:
+                # 1. 检查设备连接状态
+                if not self.device_connection_manager.get_connection_status():
+                    logger.warning("设备未连接，无法启动自动测试")
+                    return
+
+                # 2. 检查主窗口测试状态
+                if self.is_testing:
+                    logger.info("当前正在测试中，跳过自动测试启动")
+                    return
+
+                # 3. 检查测试流程管理器状态
+                if not hasattr(self, 'test_flow_manager') or not self.test_flow_manager:
+                    logger.error("测试流程管理器未初始化")
+                    return
+
+                # 4. 检查测试流程管理器内部状态
+                if hasattr(self.test_flow_manager, 'is_testing') and self.test_flow_manager.is_testing:
+                    logger.warning("测试流程管理器显示正在测试中，跳过自动测试启动")
+                    return
+
+                # 5. 检查自动侦测配置
+                auto_detect = self.config_manager.get('test.auto_detect', True)
+                if not auto_detect:
+                    logger.info("自动侦测已禁用，跳过自动测试启动")
+                    return
+
+                # 6. 额外的状态验证
+                if not self._validate_auto_test_conditions():
+                    logger.warning("自动测试条件验证失败，跳过启动")
+                    return
+
+                # 启动测试
+                logger.info("🎯 所有条件满足，准备启动测试流程...")
+                success = self.test_flow_manager.start_test()
+
+                if success:
+                    logger.info("✅ 新电池自动测试启动成功")
+                    # 更新主窗口状态
+                    self.is_testing = True
+                else:
+                    logger.warning("⚠️ 新电池自动测试启动失败")
+
+            finally:
+                # 🔧 修复：确保清理启动标志
+                self._auto_test_starting = False
+
+        except Exception as e:
+            logger.error(f"启动新电池自动测试失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            # 确保清理启动标志
+            if hasattr(self, '_auto_test_starting'):
+                self._auto_test_starting = False
+
+    def _validate_auto_test_conditions(self) -> bool:
+        """验证自动测试启动条件"""
+        try:
+            # 检查连续测试模式
+            continuous_mode = self.config_manager.get('test.continuous_mode', False)
+            if continuous_mode:
+                logger.debug("连续测试模式已启用，跳过自动测试")
+                return False
+
+            # 检查测试控制组件状态
+            try:
+                test_control = self.ui_component_manager.get_component('test_control')
+                if test_control and hasattr(test_control, 'is_testing') and test_control.is_testing:
+                    logger.debug("测试控制组件显示正在测试中")
+                    return False
+            except Exception as e:
+                logger.debug(f"检查测试控制组件状态失败: {e}")
+
+            # 检查是否有通道启用
+            enabled_channels = self.config_manager.get('test.enabled_channels', [])
+            if not enabled_channels:
+                logger.debug("没有启用的测试通道")
+                return False
+
+            logger.debug("自动测试条件验证通过")
+            return True
+
+        except Exception as e:
+            logger.error(f"验证自动测试条件失败: {e}")
+            return False
+
+    def _is_main_thread(self) -> bool:
+        """检查当前是否在主线程中"""
+        try:
+            from PyQt5.QtCore import QThread
+            return QThread.currentThread() == self.thread()
+        except Exception:
+            return True  # 如果检查失败，假设在主线程中
+
+    def _on_printer_status_changed(self, connected: bool, printer_info: Optional[dict] = None):
+        """打印机状态变更处理"""
+        self.event_coordinator.handle_printer_status_changed(connected, printer_info)
+
+    def _on_label_print_started(self, print_job_info: dict):
+        """标签打印开始处理"""
+        self.event_coordinator.handle_label_print_started(print_job_info)
+
+    def _on_label_print_completed(self, print_result: dict):
+        """标签打印完成处理"""
+        self.event_coordinator.handle_label_print_completed(print_result)
+
+    def _on_print_queue_updated(self, queue_info: dict):
+        """打印队列更新处理"""
+        self.event_coordinator.handle_print_queue_updated(queue_info)
+    
+    def _on_config_changed(self, key: str, value):
+        """配置变更处理（使用事件协调器）"""
+        self.event_coordinator.handle_config_changed(key, value)
+
+    def _on_label_template_config_changed(self, key: str, value):
+        """标签模板配置变更处理"""
+        try:
+            logger.info(f"标签模板配置变更: {key} = {value}")
+
+            # 重新加载标签打印管理器的模板配置
+            if hasattr(self, 'label_print_manager'):
+                self.label_print_manager.reload_template_config()
+                logger.info("标签打印管理器模板配置已重新加载")
+
+        except Exception as e:
+            logger.error(f"处理标签模板配置变更失败: {e}")
+
+    def _on_grade_settings_changed(self, key: str, value):
+        """档位设置变更处理"""
+        try:
+            logger.info(f"档位设置已变更: {key} = {value}")
+
+            # 更新统计组件的档位范围显示
+            if hasattr(self, 'ui_component_manager'):
+                ui_manager = self.ui_component_manager
+                statistics_widget = ui_manager.get_component('statistics')
+                if statistics_widget and hasattr(statistics_widget, 'update_grade_settings'):
+                    statistics_widget.update_grade_settings()
+                    logger.debug("已更新统计组件的档位范围显示")
+
+            # 更新通道显示组件的档位设置
+            channels_container = ui_manager.get_component('channels_container')
+            if channels_container and hasattr(channels_container, 'update_grade_settings'):
+                channels_container.update_grade_settings()
+                logger.debug("已更新通道容器的档位设置")
+
+        except Exception as e:
+            logger.error(f"处理档位设置变更失败: {e}")
+
+    def _on_product_info_changed(self, key: str, value):
+        """产品信息设置变更处理（修复：产品信息实时更新）"""
+        try:
+            logger.info(f"产品信息设置已变更: {key} = {value}")
+
+            # 更新批次信息组件显示
+            batch_info = self.ui_component_manager.get_component('batch_info')
+            if batch_info:
+                if hasattr(batch_info, 'refresh_display'):
+                    batch_info.refresh_display()
+                    logger.debug("批次信息显示已刷新")
+
+                # 根据具体的配置键进行特定更新
+                if key.endswith('.batch_number'):
+                    if hasattr(batch_info, 'set_batch_number'):
+                        batch_info.set_batch_number(str(value))
+                elif key.endswith('.operator'):
+                    if hasattr(batch_info, 'set_operator'):
+                        batch_info.set_operator(str(value))
+                elif key.endswith('.battery_type'):
+                    if hasattr(batch_info, 'set_cell_type'):
+                        batch_info.set_cell_type(str(value))
+                elif key.endswith('.battery_spec'):
+                    if hasattr(batch_info, 'refresh_battery_spec_from_product'):
+                        batch_info.refresh_battery_spec_from_product()
+
+        except Exception as e:
+            logger.error(f"处理产品信息设置变更失败: {e}")
+
+    def _on_general_settings_changed(self, value):
+        """通用设置变更处理（修复：设置实时更新）"""
+        try:
+            logger.info(f"通用设置已变更，刷新所有设置: {value}")
+
+            # 重新加载所有启动设置（使用新的设置加载管理器）
+            self.settings_loader.load_startup_settings()
+
+        except Exception as e:
+            logger.error(f"处理通用设置变更失败: {e}")
+
+    def _on_channel_enable_changed(self, enabled_channels):
+        """通道使能设置变更处理"""
+        try:
+            logger.info(f"通道使能设置已变更: {enabled_channels}")
+
+            # 更新测试引擎的通道使能状态
+            if hasattr(self, 'test_engine') and self.test_engine:
+                self.test_engine._update_channel_enable_status(enabled_channels)
+
+            # 更新UI显示
+            if hasattr(self, 'ui_component_manager'):
+                ui_manager = self.ui_component_manager
+
+                # 更新通道容器的使能状态
+                channels_container = ui_manager.get_component('channels_container')
+                if channels_container and hasattr(channels_container, 'update_channel_enable_status'):
+                    channels_container.update_channel_enable_status(enabled_channels)
+                    logger.debug("已更新通道容器的使能状态")
+
+        except Exception as e:
+            logger.error(f"处理通道使能设置变更失败: {e}")
+
+    def _on_probe_pin_settings_changed(self, key: str, value):
+        """顶针寿命设置变更处理"""
+        try:
+            logger.debug(f"顶针寿命设置已变更: {key} = {value}")
+
+            # 刷新顶针寿命显示
+            if hasattr(self, 'ui_component_manager'):
+                ui_manager = self.ui_component_manager
+
+                # 通过通道容器刷新测试计数显示
+                channels_container = ui_manager.get_component('channels_container')
+                if channels_container:
+                    # 刷新所有通道的测试计数显示
+                    for channel_num in range(1, 9):
+                        count = self.config_manager.get(f'test_count.channel_{channel_num}', 0)
+                        if hasattr(channels_container, 'update_channel_test_count'):
+                            channels_container.update_channel_test_count(channel_num, count)
+                    logger.debug("已刷新所有通道的测试计数显示")
+
+        except Exception as e:
+            logger.error(f"处理顶针寿命设置变更失败: {e}")
+
+    def _on_outlier_detection_config_changed(self, key: str, value):
+        """离群检测配置变更处理"""
+        try:
+            logger.debug(f"离群检测配置已变更: {key} = {value}")
+
+            # 获取离群检测状态
+            if key == 'outlier_detection.is_enabled':
+                enabled = bool(value)
+
+                # 更新所有通道的离群检测状态
+                if hasattr(self, 'ui_component_manager'):
+                    ui_manager = self.ui_component_manager
+                    channels_container = ui_manager.get_component('channels_container')
+                    if channels_container and hasattr(channels_container, 'update_all_outlier_detection_status'):
+                        channels_container.update_all_outlier_detection_status(enabled)
+                        logger.info(f"已更新所有通道离群检测状态: {'启用' if enabled else '禁用'}")
+
+        except Exception as e:
+            logger.error(f"处理离群检测配置变更失败: {e}")
+
+    def _on_test_count_changed(self, key: str, value):
+        """测试计数变更处理"""
+        try:
+            # 提取通道号
+            if 'channel_' in key:
+                channel_num_str = key.split('channel_')[1]
+                try:
+                    channel_num = int(channel_num_str)
+                    logger.debug(f"通道{channel_num}测试计数已变更: {value}")
+
+                    # 更新通道显示组件的测试计数
+                    if hasattr(self, 'ui_component_manager'):
+                        ui_manager = self.ui_component_manager
+
+                        channels_container = ui_manager.get_component('channels_container')
+                        if channels_container and hasattr(channels_container, 'update_channel_test_count'):
+                            channels_container.update_channel_test_count(channel_num, value)
+                            logger.debug(f"已更新通道{channel_num}的测试计数显示")
+
+                except ValueError:
+                    logger.warning(f"无法解析通道号: {key}")
+
+        except Exception as e:
+            logger.error(f"处理测试计数变更失败: {e}")
+
+    def _on_test_mode_config_changed(self, key: str, value):
+        """测试模式配置变更处理"""
+        try:
+            logger.debug(f"测试模式配置已变更: {key} = {value}")
+
+            # 获取测试控制组件并重新加载设置
+            if hasattr(self, 'ui_component_manager'):
+                ui_manager = self.ui_component_manager
+                test_control = ui_manager.get_component('test_control')
+
+                if test_control and hasattr(test_control, 'load_settings'):
+                    test_control.load_settings()
+                    logger.debug("已刷新测试控制组件的设置")
+                else:
+                    logger.warning("测试控制组件未找到或不支持设置加载")
+
+        except Exception as e:
+            logger.error(f"处理测试模式配置变更失败: {e}")
+
+    # ===== 窗口事件 =====
+
+    def keyPressEvent(self, event):
+        """键盘事件处理"""
+        try:
+            # 检查隐藏的调试功能组合键 Ctrl+Shift+T
+            if (event.key() == Qt.Key.Key_T and  # 使用正确的Qt常量
+                event.modifiers() == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)):
+                logger.debug("检测到Ctrl+Shift+T组合键，触发调试功能")
+                self._show_debug_dialog()
+                return
+
+            # F11键或ESC键切换/退出全屏
+            if event.key() == Qt.Key.Key_F11:  # 使用正确的Qt常量
+                self._toggle_fullscreen()
+            elif event.key() == Qt.Key.Key_Escape and self.isFullScreen():  # 使用正确的Qt常量
+                self._exit_fullscreen()
+            else:
+                super().keyPressEvent(event)
+
+        except Exception as e:
+            logger.error(f"处理键盘事件失败: {e}")
+            super().keyPressEvent(event)
+
+    def _toggle_fullscreen(self):
+        """切换全屏模式"""
+        try:
+            if self.isFullScreen():
+                self._exit_fullscreen()
+            else:
+                self._enter_fullscreen()
+        except Exception as e:
+            logger.error(f"切换全屏模式失败: {e}")
+
+    def _enter_fullscreen(self):
+        """进入全屏模式"""
+        try:
+            self.showFullScreen()
+            logger.info("进入全屏模式")
+        except Exception as e:
+            logger.error(f"进入全屏模式失败: {e}")
+
+    def _exit_fullscreen(self):
+        """退出全屏模式"""
+        try:
+            self.showNormal()
+            logger.info("退出全屏模式")
+        except Exception as e:
+            logger.error(f"退出全屏模式失败: {e}")
+
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        try:
+            # 保存窗口设置
+            if hasattr(self, 'window_layout_manager'):
+                self.window_layout_manager.save_window_settings()
+
+            # 保存配置
+            self.config_manager.save_config()
+
+            # 清理资源
+            self._cleanup_resources()
+
+            logger.info("应用程序正在关闭")
+            event.accept()
+
+        except Exception as e:
+            logger.error(f"关闭窗口失败: {e}")
+            event.accept()
+
+    def _cleanup_resources(self):
+        """清理资源"""
+        try:
+            # 清理定时器
+            if hasattr(self, 'window_layout_manager'):
+                self.window_layout_manager.cleanup_timers()
+
+            # 清理测试流程
+            if hasattr(self, 'test_flow_manager'):
+                self.test_flow_manager.cleanup()
+
+            # 清理设备连接
+            if hasattr(self, 'device_connection_manager'):
+                self.device_connection_manager.cleanup()
+
+            # 清理UI组件
+            if hasattr(self, 'ui_component_manager'):
+                self.ui_component_manager.cleanup()
+
+        except Exception as e:
+            logger.error(f"清理资源失败: {e}")
+    
+    # ===== 管理器访问接口 =====
+    
+    def get_manager(self, manager_name: str):
+        """
+        获取指定的管理器实例
+
+        Args:
+            manager_name: 管理器名称
+
+        Returns:
+            管理器实例或None
+        """
+        managers = {
+            'window': getattr(self, 'window_layout_manager', None),
+            'menu': getattr(self, 'menu_manager', None),
+            'device_connection': getattr(self, 'device_connection_manager', None),
+            'test_flow': getattr(self, 'test_flow_manager', None),
+            'ui_component': getattr(self, 'ui_component_manager', None)
+        }
+        return managers.get(manager_name)
+
+    def get_status_info(self) -> dict:
+        """
+        获取状态信息
+
+        Returns:
+            状态信息字典
+        """
+        status_info = {
+            'is_testing': self.is_testing,
+        }
+
+        # 安全地获取各管理器的状态信息
+        if hasattr(self, 'window_layout_manager'):
+            status_info['window_info'] = getattr(self.window_layout_manager, 'get_window_info', lambda: {})()
+
+        if hasattr(self, 'device_connection_manager'):
+            status_info['device_status'] = getattr(self.device_connection_manager, 'get_manager_info', lambda: {})()
+
+        if hasattr(self, 'test_flow_manager'):
+            status_info['test_status'] = getattr(self.test_flow_manager, 'get_test_status', lambda: {})()
+
+        if hasattr(self, 'ui_component_manager'):
+            status_info['components_info'] = getattr(self.ui_component_manager, 'get_components_info', lambda: {})()
+
+        return status_info
+
+    # ===== 授权管理相关方法 =====
+
+    def _on_trial_expired(self):
+        """处理试用期到期"""
+        try:
+            logger.warning("试用期已到期")
+
+            # 获取header组件的授权管理器
+            header = self.ui_component_manager.get_component('header')
+            if header and hasattr(header, 'get_license_manager'):
+                license_manager = header.get_license_manager()
+                if license_manager and not license_manager.is_authorized():
+                    # 显示试用期到期提示
+                    from PyQt5.QtWidgets import QMessageBox
+                    QMessageBox.warning(
+                        self,
+                        "试用期到期",
+                        "软件试用期已到期！\n\n请点击右上角的\"解锁\"按钮输入解锁码以继续使用软件。\n\n如需购买授权，请联系软件供应商。",
+                        QMessageBox.Ok
+                    )
+
+        except Exception as e:
+            logger.error(f"处理试用期到期失败: {e}")
+
+    def _on_unlock_requested(self):
+        """处理解锁请求"""
+        try:
+            logger.info("用户请求解锁软件")
+
+            # 获取header组件的授权管理器
+            header = self.ui_component_manager.get_component('header')
+            if header and hasattr(header, 'get_license_manager'):
+                license_manager = header.get_license_manager()
+                if license_manager:
+                    self._show_unlock_dialog(license_manager)
+                else:
+                    from PyQt5.QtWidgets import QMessageBox
+                    QMessageBox.critical(self, "错误", "授权管理器未初始化")
+            else:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "错误", "无法获取授权管理器")
+
+        except Exception as e:
+            logger.error(f"处理解锁请求失败: {e}")
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "错误", f"处理解锁请求时发生错误：\n\n{e}")
+
+    def _show_unlock_dialog(self, license_manager):
+        """显示解锁对话框"""
+        try:
+            from ui.dialogs.unlock_dialog import UnlockDialog
+
+            dialog = UnlockDialog(license_manager, self)
+            dialog.unlock_successful.connect(self._on_unlock_successful)
+
+            # 显示对话框
+            dialog.exec_()
+
+        except Exception as e:
+            logger.error(f"显示解锁对话框失败: {e}")
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "错误", f"显示解锁对话框时发生错误：\n\n{e}")
+
+    def _on_unlock_successful(self):
+        """处理解锁成功"""
+        try:
+            logger.info("软件解锁成功")
+
+            # 刷新header组件的授权状态显示
+            header = self.ui_component_manager.get_component('header')
+            if header and hasattr(header, 'refresh_license_status'):
+                header.refresh_license_status()
+
+            # 显示成功消息
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self,
+                "解锁成功",
+                "恭喜！软件已成功解锁。\n\n您现在可以无限制使用本软件的所有功能。"
+            )
+
+        except Exception as e:
+            logger.error(f"处理解锁成功失败: {e}")
+
+    def check_license_on_startup(self):
+        """启动时检查授权状态"""
+        try:
+            header = self.ui_component_manager.get_component('header')
+            if header and hasattr(header, 'get_license_manager'):
+                license_manager = header.get_license_manager()
+                if license_manager:
+                    status = license_manager.get_license_status()
+
+                    if status['is_licensed']:
+                        logger.info("软件已授权，可正常使用")
+                    elif not status['is_trial_expired']:
+                        remaining_days = status['remaining_days']
+                        logger.info(f"软件在试用期内，剩余{remaining_days}天")
+
+                        # 如果剩余天数较少，显示提醒
+                        if remaining_days <= 7:
+                            from PyQt5.QtWidgets import QMessageBox
+                            QMessageBox.information(
+                                self,
+                                "试用期提醒",
+                                f"软件试用期剩余 {remaining_days} 天。\n\n如需继续使用，请及时联系供应商获取解锁码。"
+                            )
+                    else:
+                        logger.warning("软件试用期已到期")
+                        # 试用期到期的处理在_on_trial_expired中进行
+                else:
+                    logger.error("授权管理器未初始化")
+            else:
+                logger.error("无法获取授权管理器")
+
+        except Exception as e:
+            logger.error(f"启动时检查授权状态失败: {e}")
+
+    def _show_debug_dialog(self):
+        """显示授权调试对话框（隐藏功能）"""
+        try:
+            logger.info("🔧 触发隐藏的授权调试功能")
+
+            # 检查调试模式文件是否存在
+            debug_file = os.path.join(os.path.dirname(__file__), '..', '.debug_mode')
+            if not os.path.exists(debug_file):
+                logger.warning("调试模式文件不存在，调试功能被禁用")
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self,
+                    "调试功能不可用",
+                    "调试功能仅在开发环境中可用。\n\n生产环境中此功能已禁用。"
+                )
+                return
+
+            logger.info(f"✅ 调试模式文件存在: {debug_file}")
+
+            # 导入调试对话框
+            from ui.dialogs.license_debug_dialog import LicenseDebugDialog
+
+            # 创建并显示调试对话框
+            debug_dialog = LicenseDebugDialog(self.config_manager, self)
+
+            # 连接状态变更信号
+            debug_dialog.license_status_changed.connect(self._on_license_status_changed)
+
+            # 显示对话框
+            logger.info("🔧 显示授权调试对话框")
+            debug_dialog.exec_()
+
+        except Exception as e:
+            logger.error(f"❌ 显示授权调试对话框失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "调试功能错误",
+                f"无法启动授权调试功能：\n\n{e}\n\n请检查调试功能是否已正确配置。"
+            )
+
+    def _on_license_status_changed(self):
+        """处理授权状态变更"""
+        try:
+            logger.info("授权状态已变更，刷新相关组件")
+
+            # 刷新header组件的授权状态显示
+            header = self.ui_component_manager.get_component('header')
+            if header and hasattr(header, 'refresh_license_status'):
+                header.refresh_license_status()
+
+            # 可以在这里添加其他需要响应授权状态变更的逻辑
+
+        except Exception as e:
+            logger.error(f"处理授权状态变更失败: {e}")

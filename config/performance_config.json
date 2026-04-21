@@ -1,0 +1,40 @@
+{
+  "performance": {
+    "mode": "auto",
+    "max_processing_time": 5.0,
+    "cpu_intensive_operations": true,
+    "algorithm_timeout": 3.0,
+    "max_data_points": 50,
+    "enable_curve_fitting": true,
+    "enable_advanced_smoothing": true,
+    "auto_degradation": true,
+    "performance_monitoring": true
+  },
+  "fast_mode": {
+    "description": "快速模式 - 适用于低配置电脑",
+    "max_processing_time": 2.0,
+    "cpu_intensive_operations": false,
+    "algorithm_timeout": 1.0,
+    "max_data_points": 30,
+    "enable_curve_fitting": false,
+    "enable_advanced_smoothing": false,
+    "use_simple_algorithms": true
+  },
+  "quality_mode": {
+    "description": "质量模式 - 适用于高配置电脑",
+    "max_processing_time": 10.0,
+    "cpu_intensive_operations": true,
+    "algorithm_timeout": 5.0,
+    "max_data_points": 100,
+    "enable_curve_fitting": true,
+    "enable_advanced_smoothing": true,
+    "use_simple_algorithms": false
+  },
+  "auto_mode": {
+    "description": "自动模式 - 根据性能动态调整",
+    "performance_threshold": 5.0,
+    "degradation_threshold": 3.0,
+    "upgrade_threshold": 2.0,
+    "monitoring_window": 10
+  }
+}

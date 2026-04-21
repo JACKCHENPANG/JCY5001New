@@ -1,0 +1,19 @@
+{
+  "total_count": 40,
+  "pass_count": 0,
+  "fail_count": 40,
+  "grade_distribution": {
+    "Rs1-Rct1": 0,
+    "Rs1-Rct2": 0,
+    "Rs1-Rct3": 0,
+    "Rs2-Rct1": 0,
+    "Rs2-Rct2": 0,
+    "Rs2-Rct3": 0,
+    "Rs3-Rct1": 0,
+    "Rs3-Rct2": 0,
+    "Rs3-Rct3": 0
+  },
+  "last_clear_time": null,
+  "created_time": "2025-07-09 05:53:06",
+  "updated_time": "2025-07-09 06:06:13"
+}

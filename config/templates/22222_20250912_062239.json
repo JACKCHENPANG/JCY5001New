@@ -1,0 +1,57 @@
+{
+  "template_info": {
+    "name": "22222",
+    "description": "测",
+    "version": "1.0",
+    "created_time": "2025-09-12T06:22:39.155749",
+    "system": "JCY5001AS电池测试系统"
+  },
+  "config_data": {
+    "frequency": {
+      "research_frequencies": [],
+      "production_frequencies": [],
+      "current_mode": "production"
+    },
+    "grade": {
+      "rs_boundaries": {},
+      "rct_boundaries": {},
+      "grade_labels": {},
+      "enabled": true
+    },
+    "test": {
+      "timeout": 60,
+      "retry_count": 2,
+      "parallel_channels": 8,
+      "auto_start": false
+    },
+    "channels": {
+      "enabled_channels": [],
+      "channel_names": {},
+      "error_skip_enabled": true
+    },
+    "device": {
+      "connection_timeout": 5,
+      "retry_interval": 1,
+      "max_retries": 3,
+      "auto_reconnect": true
+    },
+    "storage": {
+      "auto_backup": true,
+      "backup_interval": 24,
+      "max_backup_files": 10,
+      "data_retention_days": 30
+    },
+    "printer": {
+      "name": "Microsoft Print to PDF",
+      "quality": "高质量",
+      "density": "high",
+      "auto_print": false
+    },
+    "ui": {
+      "theme": "light",
+      "font_size": 12,
+      "auto_refresh": true,
+      "show_debug": false
+    }
+  }
+}

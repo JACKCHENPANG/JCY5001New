@@ -1,0 +1,50 @@
+{
+  "info": {
+    "brand": "比亚迪",
+    "cell_type": "三元锂",
+    "capacity_value": 5,
+    "capacity_unit": "Ah",
+    "capacity_display": "5Ah",
+    "standard_value": 0.8,
+    "tolerance_percent": 3.0,
+    "standard_impedance_display": "0.800mΩ±3.0%",
+    "sample_name": "高容量样本_三元锂_5Ah",
+    "description": "比亚迪三元锂电池高容量样本，适用于动力电池测试"
+  },
+  "median_data": {
+    "1": {
+      "1000.0": {
+        "real": 0.3,
+        "imag": 0.2,
+        "z_value": 0.361,
+        "count": 6
+      },
+      "500.0": {
+        "real": 0.4,
+        "imag": 0.3,
+        "z_value": 0.5,
+        "count": 6
+      },
+      "100.0": {
+        "real": 0.6,
+        "imag": 0.4,
+        "z_value": 0.721,
+        "count": 6
+      }
+    }
+  },
+  "analysis_result": {
+    "deviation_analysis": {
+      "statistics": {
+        "total_points": 18,
+        "within_threshold_points": 17,
+        "within_threshold_rate": 94.4,
+        "max_deviation": 4.2
+      }
+    },
+    "is_qualified": true
+  },
+  "created_at": "2025-06-01T07:15:19.768853",
+  "threshold": 5.0,
+  "mode": "非固定通道号模式"
+}

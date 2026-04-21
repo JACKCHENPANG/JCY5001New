@@ -1,0 +1,37 @@
+{
+  "app": {
+    "name": "JCY5001AS电池测试系统",
+    "version": "1.0.0",
+    "debug": false,
+    "log_level": "INFO"
+  },
+  "database": {
+    "path": "data/test_results.db",
+    "backup_enabled": true,
+    "backup_interval": 24,
+    "max_backups": 30
+  },
+  "serial": {
+    "port": "COM16",
+    "baudrate": 115200,
+    "timeout": 5,
+    "auto_connect": true
+  },
+  "test": {
+    "timeout": 60,
+    "retry_count": 2,
+    "auto_detect": true,
+    "continuous_test": false,
+    "interval": 2
+  },
+  "ui": {
+    "theme": "light",
+    "font_size": 12,
+    "auto_save": true
+  },
+  "label": {
+    "auto_print": false,
+    "print_pass_only": true,
+    "copies": 1
+  }
+}

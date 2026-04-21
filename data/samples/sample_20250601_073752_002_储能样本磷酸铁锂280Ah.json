@@ -1,0 +1,50 @@
+{
+  "info": {
+    "brand": "国轩高科",
+    "cell_type": "磷酸铁锂",
+    "capacity_value": 280,
+    "capacity_unit": "Ah",
+    "capacity_display": "280Ah",
+    "standard_value": 0.2,
+    "tolerance_percent": 2.0,
+    "standard_impedance_display": "0.200mΩ±2.0%",
+    "sample_name": "储能样本_磷酸铁锂_280Ah",
+    "description": "国轩高科储能电池样本，超大容量储能应用"
+  },
+  "median_data": {
+    "1": {
+      "1000.0": {
+        "real": 0.15,
+        "imag": 0.1,
+        "z_value": 0.18,
+        "count": 10
+      },
+      "500.0": {
+        "real": 0.18,
+        "imag": 0.12,
+        "z_value": 0.216,
+        "count": 10
+      },
+      "100.0": {
+        "real": 0.22,
+        "imag": 0.15,
+        "z_value": 0.266,
+        "count": 10
+      }
+    }
+  },
+  "analysis_result": {
+    "deviation_analysis": {
+      "statistics": {
+        "total_points": 30,
+        "within_threshold_points": 30,
+        "within_threshold_rate": 100.0,
+        "max_deviation": 1.8
+      }
+    },
+    "is_qualified": true
+  },
+  "created_at": "2025-06-01T07:37:52.819190",
+  "threshold": 8.0,
+  "mode": "固定通道号模式"
+}

@@ -1,0 +1,919 @@
+# -*- coding: utf-8 -*-
+"""
+频率设置页面
+设置多频点/单频点、预设频点配置等
+
+Author: Jack
+Date: 2025-01-27
+"""
+
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QGroupBox, QLabel, QRadioButton, QListWidget, QListWidgetItem,
+    QPushButton, QLineEdit, QDoubleSpinBox, QMessageBox,
+    QButtonGroup, QCheckBox, QMenu, QAction, QInputDialog
+)
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtGui import QFont
+import logging
+
+logger = logging.getLogger(__name__)
+
+from utils.config_manager import ConfigManager
+
+
+class FrequencySettingsWidget(QWidget):
+    """频率设置页面组件"""
+
+    # 信号定义
+    settings_changed = pyqtSignal()  # 设置变更信号
+
+    def __init__(self, config_manager: ConfigManager, parent=None):
+        """
+        初始化频率设置页面
+
+        Args:
+            config_manager: 配置管理器
+            parent: 父窗口
+        """
+        super().__init__(parent)
+
+        self.config_manager = config_manager
+        self._loading = False  # 防止加载时触发变更信号
+
+        # 🚀 性能优化：延迟初始化预设频点，避免构造函数阻塞
+        self.preset_frequencies = None
+        self._preset_frequencies_initialized = False
+
+        # 初始化界面
+        self._init_ui()
+        self._init_connections()
+
+        logger.debug("频率设置页面初始化完成")
+
+    def _ensure_preset_frequencies_initialized(self):
+        """🚀 确保预设频点已初始化（快速初始化）"""
+        if not self._preset_frequencies_initialized:
+            # 🚀 性能优化：只初始化基础预设，不进行频率匹配
+            self.preset_frequencies = self._get_basic_preset_frequencies()
+            self._preset_frequencies_initialized = True
+            logger.debug("预设频点快速初始化完成")
+
+    def _remove_duplicate_frequencies(self, frequencies: list) -> list:
+        """
+        去除重复的频率点
+
+        Args:
+            frequencies: 原始频率列表
+
+        Returns:
+            去重后的频率列表（按从高到低排序）
+        """
+        try:
+            if not frequencies:
+                return []
+
+            # 使用set去重，然后转换为列表并排序
+            unique_frequencies = list(set(frequencies))
+            # 按从高到低排序
+            unique_frequencies.sort(reverse=True)
+
+            removed_count = len(frequencies) - len(unique_frequencies)
+            if removed_count > 0:
+                logger.info(f"频率去重: 原始{len(frequencies)}个频点，去重后{len(unique_frequencies)}个频点，移除{removed_count}个重复频点")
+
+            return unique_frequencies
+
+        except Exception as e:
+            logger.error(f"频率去重失败: {e}")
+            return frequencies
+
+    def _get_basic_preset_frequencies(self) -> dict:
+        """🚀 获取基础预设频点（不进行频率匹配，并自动去重）"""
+        original_presets = {
+            "研究模式": [1007.0827, 625.612, 389.1001, 242.2339, 150.6809, 93.4603, 57.2206, 36.2397, 22.8882, 13.3515, 11.4441, 9.5368, 7.6294, 5.7221, 3.8147, 1.9074, 0.9537, 0.4768, 0.2384, 0.1192],
+            "生产模式": [1.0, 10.0, 100.0, 1000.0],
+            "快速模式": [1.0, 1000.0],
+            "<1mΩ内阻频点": [0.1, 0.126, 0.158, 0.2, 0.251, 0.316, 0.398, 0.501, 0.631, 0.794, 1.0, 1.259, 1.585, 1.995, 2.512, 3.162, 3.981, 5.012, 6.31, 7.943, 10.0, 12.59, 15.85, 19.95, 25.12, 31.62, 39.81, 50.12, 63.1, 79.43, 100.0],
+            ">10mΩ内阻频点": [0.04, 0.05, 0.063, 0.079, 0.1, 0.126, 0.158, 0.2, 0.251, 0.316, 0.398, 0.501, 0.631, 0.794, 1.0, 1.259, 1.585, 1.995, 2.512, 3.162, 3.981, 5.012, 6.31, 7.943, 10.0, 12.59, 15.85, 19.95, 25.12, 31.62, 39.81, 50.12, 63.1, 79.43, 100.0, 125.9, 158.5, 199.5, 251.2, 316.2, 398.1, 501.2, 631.0, 794.3, 1000.0, 1259, 1585, 1995, 2512, 3162, 3981, 5012, 6310],
+            "自定义": []
+        }
+
+        # 对每个预设进行去重处理
+        deduplicated_presets = {}
+        for preset_name, frequencies in original_presets.items():
+            deduplicated_presets[preset_name] = self._remove_duplicate_frequencies(frequencies)
+
+        return deduplicated_presets
+
+    def _initialize_preset_frequencies(self) -> dict:
+        """
+        初始化预设频点配置，使用频率匹配器将原始频点转换为设备精确频点
+
+        Returns:
+            包含设备精确频点的预设配置字典
+        """
+        try:
+            from utils.frequency_matcher import frequency_matcher
+
+            # 原始预设频点（用户期望的频率）- 先获取基础预设（已去重）
+            original_presets = self._get_basic_preset_frequencies()
+
+            # 转换为设备精确频点
+            matched_presets = {}
+            for mode_name, frequencies in original_presets.items():
+                if mode_name == "自定义":
+                    matched_presets[mode_name] = []
+                elif mode_name == "研究模式":
+                    # 研究模式的频点已经是设备精确频点，直接使用
+                    matched_presets[mode_name] = frequencies
+                    logger.info(f"{mode_name}预设频点已设置为设备精确频点，共{len(frequencies)}个频点")
+                else:
+                    # 其他模式需要进行频率匹配
+                    matched_frequencies = []
+                    for freq in frequencies:
+                        matched_freq = frequency_matcher.find_closest_preset_frequency(freq)
+                        matched_frequencies.append(matched_freq)
+                        logger.debug(f"预设频点匹配: {freq}Hz -> {matched_freq}Hz")
+
+                    matched_presets[mode_name] = matched_frequencies
+                    logger.info(f"{mode_name}预设频点已更新为设备精确频点，共{len(matched_frequencies)}个频点")
+
+            return matched_presets
+
+        except Exception as e:
+            logger.error(f"初始化预设频点失败: {e}")
+            # 回退到原始频点
+            return {
+                "研究模式": [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 7800.0],
+                "生产模式": [1.0, 10.0, 100.0, 1000.0],
+                "快速模式": [1.0, 1000.0],
+                "自定义": []
+            }
+
+    def _init_ui(self):
+        """初始化用户界面"""
+        # 创建主布局
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)
+
+        # 创建测试模式组
+        mode_group = self._create_mode_group()
+        main_layout.addWidget(mode_group)
+
+        # 创建频点设置组
+        frequency_group = self._create_frequency_group()
+        main_layout.addWidget(frequency_group)
+
+        # 添加弹性空间
+        main_layout.addStretch()
+
+    def _create_mode_group(self) -> QGroupBox:
+        """创建测试模式组"""
+        group = QGroupBox("测试模式")
+        group.setFont(QFont("", 10, QFont.Bold))
+
+        layout = QVBoxLayout(group)
+        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # 显示当前测试模式信息
+        mode_info_label = QLabel("当前测试模式: 多频点模式")
+        mode_info_label.setFont(QFont("", 9, QFont.Bold))
+        mode_info_label.setStyleSheet("color: #2E8B57; padding: 10px;")
+        layout.addWidget(mode_info_label)
+
+        mode_desc_label = QLabel("• 使用多个频点进行全面的阻抗分析\n• 适用于研究和详细分析\n• 测试时间较长但精度高")
+        mode_desc_label.setFont(QFont("", 8))
+        mode_desc_label.setStyleSheet("color: #666; margin-left: 20px;")
+        layout.addWidget(mode_desc_label)
+
+        return group
+
+    def _create_frequency_group(self) -> QGroupBox:
+        """创建频点设置组"""
+        group = QGroupBox("频点配置")
+        group.setFont(QFont("", 10, QFont.Bold))
+
+        layout = QHBoxLayout(group)
+        layout.setSpacing(20)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # 左侧：预设配置
+        preset_layout = self._create_preset_layout()
+        layout.addLayout(preset_layout, 1)
+
+        # 右侧：频点列表和编辑
+        frequency_layout = self._create_frequency_list_layout()
+        layout.addLayout(frequency_layout, 2)
+
+        return group
+
+    def _create_preset_layout(self) -> QVBoxLayout:
+        """创建预设配置布局"""
+        layout = QVBoxLayout()
+
+        # 预设配置标签
+        preset_label = QLabel("预设配置:")
+        preset_label.setFont(QFont("", 9, QFont.Bold))
+        layout.addWidget(preset_label)
+
+        # 预设配置按钮组
+        self.preset_button_group = QButtonGroup()
+
+        # 研究模式
+        self.research_radio = QRadioButton("研究模式")
+        self.research_radio.setToolTip("0.01Hz - 7.8kHz，19个频点\n适用于详细的阻抗分析")
+        self.preset_button_group.addButton(self.research_radio, 0)
+        layout.addWidget(self.research_radio)
+
+        # 生产模式
+        self.production_radio = QRadioButton("生产模式")
+        self.production_radio.setToolTip("1Hz, 10Hz, 100Hz, 1kHz，4个频点\n适用于生产线快速测试")
+        self.preset_button_group.addButton(self.production_radio, 1)
+        layout.addWidget(self.production_radio)
+
+        # 快速模式
+        self.quick_radio = QRadioButton("快速模式")
+        self.quick_radio.setToolTip("1Hz, 1kHz，2个频点\n适用于极速筛选")
+        self.preset_button_group.addButton(self.quick_radio, 2)
+        layout.addWidget(self.quick_radio)
+
+        # <1mΩ内阻频点
+        self.low_impedance_radio = QRadioButton("<1mΩ内阻频点")
+        self.low_impedance_radio.setToolTip("0.1Hz - 100Hz，31个频点\n专用于超低内阻电池测试\n优化DRT算法分析性能")
+        self.preset_button_group.addButton(self.low_impedance_radio, 3)
+        layout.addWidget(self.low_impedance_radio)
+
+        # >10mΩ内阻频点
+        self.high_impedance_radio = QRadioButton(">10mΩ内阻频点")
+        self.high_impedance_radio.setToolTip("0.04Hz - 7.8kHz，54个频点\n专用于高内阻电池测试\n高密度频点提升分析精度")
+        self.preset_button_group.addButton(self.high_impedance_radio, 4)
+        layout.addWidget(self.high_impedance_radio)
+
+        # 🚫 智能优化功能已删除
+
+        # 自定义模式
+        self.custom_radio = QRadioButton("自定义")
+        self.custom_radio.setToolTip("用户自定义频点列表")
+        self.preset_button_group.addButton(self.custom_radio, 5)  # 调整ID
+        layout.addWidget(self.custom_radio)
+
+        # 默认选择生产模式
+        self.production_radio.setChecked(True)
+
+        # 🚫 智能优化设置组已删除
+
+        layout.addStretch()
+
+        return layout
+
+    # 🚫 智能优化设置组创建方法已删除
+
+    def _create_frequency_list_layout(self) -> QVBoxLayout:
+        """创建频点列表布局"""
+        layout = QVBoxLayout()
+
+        # 频点列表标签
+        list_label = QLabel("频点列表 (Hz):")
+        list_label.setFont(QFont("", 9, QFont.Bold))
+        layout.addWidget(list_label)
+
+        # 频点列表
+        self.frequency_list = QListWidget()
+        self.frequency_list.setMaximumHeight(200)
+        self.frequency_list.setSelectionMode(QListWidget.ExtendedSelection)  # 支持多选
+        self.frequency_list.setContextMenuPolicy(Qt.CustomContextMenu)  # 启用右键菜单
+        layout.addWidget(self.frequency_list)
+
+        # 编辑区域
+        edit_layout = QHBoxLayout()
+
+        # 频点输入
+        self.frequency_input = QDoubleSpinBox()
+        self.frequency_input.setRange(0.01, 10000.0)
+        self.frequency_input.setDecimals(2)
+        self.frequency_input.setValue(1.0)
+        self.frequency_input.setSuffix(" Hz")
+        edit_layout.addWidget(self.frequency_input)
+
+        # 添加按钮
+        self.add_button = QPushButton("添加")
+        self.add_button.setMaximumWidth(60)
+        edit_layout.addWidget(self.add_button)
+
+        # 删除按钮
+        self.remove_button = QPushButton("删除")
+        self.remove_button.setMaximumWidth(60)
+        self.remove_button.setToolTip("删除选中的频点")
+        edit_layout.addWidget(self.remove_button)
+
+        layout.addLayout(edit_layout)
+
+        # 频率匹配提示标签
+        self.frequency_match_label = QLabel()
+        self.frequency_match_label.setStyleSheet("color: #666; font-size: 11px; padding: 2px;")
+        self.frequency_match_label.setWordWrap(True)
+        self.frequency_match_label.hide()  # 初始隐藏
+        layout.addWidget(self.frequency_match_label)
+
+        # 操作按钮
+        button_layout = QHBoxLayout()
+
+        # 修改按钮
+        self.edit_button = QPushButton("修改")
+        self.edit_button.setToolTip("修改选中的频点值")
+        button_layout.addWidget(self.edit_button)
+
+        # 复制按钮
+        self.copy_button = QPushButton("复制")
+        self.copy_button.setToolTip("复制选中的频点")
+        button_layout.addWidget(self.copy_button)
+
+        # 排序按钮
+        self.sort_button = QPushButton("排序")
+        self.sort_button.setToolTip("按频率从低到高排序")
+        button_layout.addWidget(self.sort_button)
+
+        # 清空按钮
+        self.clear_button = QPushButton("清空")
+        self.clear_button.setToolTip("清空所有频点")
+        button_layout.addWidget(self.clear_button)
+
+        layout.addLayout(button_layout)
+
+        return layout
+
+    def _init_connections(self):
+        """初始化信号连接"""
+        # 预设配置变更
+        self.preset_button_group.buttonToggled.connect(self._on_preset_changed)
+
+        # 频点列表操作
+        self.add_button.clicked.connect(self._add_frequency)
+        self.remove_button.clicked.connect(self._remove_frequency)
+        self.edit_button.clicked.connect(self._edit_selected_frequency)
+        self.copy_button.clicked.connect(self._copy_selected_frequency)
+        self.sort_button.clicked.connect(self._sort_frequencies)
+        self.clear_button.clicked.connect(self._clear_frequencies)
+
+        # 频点列表变更
+        self.frequency_list.itemChanged.connect(self._on_frequency_list_changed)
+
+        # 右键菜单
+        self.frequency_list.customContextMenuRequested.connect(self._show_context_menu)
+
+        # 双击编辑
+        self.frequency_list.itemDoubleClicked.connect(self._edit_frequency_item)
+
+        # 频率输入变更 - 显示匹配提示
+        self.frequency_input.valueChanged.connect(self._on_frequency_input_changed)
+
+        # 🚫 智能优化相关连接已删除
+
+
+
+    def _on_preset_changed(self, button, checked):
+        """预设配置变更处理"""
+        if checked and not self._loading:
+            preset_name = button.text()
+
+            # 🚀 性能优化：确保预设频点已初始化
+            self._ensure_preset_frequencies_initialized()
+
+            # 🚫 智能优化模式特殊处理已删除
+            # 修复Bug：自定义模式不应该清空频点列表
+            if self.preset_frequencies and preset_name in self.preset_frequencies and preset_name != "自定义":
+                self._load_preset_frequencies(preset_name)
+                self._on_setting_changed()
+
+                # 显示频点组信息（显示去重后的实际频点数量）
+                if preset_name == "<1mΩ内阻频点":
+                    actual_count = self.frequency_list.count()
+                    QMessageBox.information(self, "频点组信息",
+                        f"已加载<1mΩ内阻专用频点\n"
+                        f"频点数量: {actual_count}个（已去重）\n"
+                        f"频率范围: 0.1Hz - 100Hz\n"
+                        f"适用于: 超低内阻电池测试\n"
+                        f"特点: 优化DRT算法分析性能")
+                elif preset_name == ">10mΩ内阻频点":
+                    actual_count = self.frequency_list.count()
+                    QMessageBox.information(self, "频点组信息",
+                        f"已加载>10mΩ内阻专用频点\n"
+                        f"频点数量: {actual_count}个（已去重）\n"
+                        f"频率范围: 0.04Hz - 6.31kHz\n"
+                        f"适用于: 高内阻电池测试\n"
+                        f"特点: 高密度频点提升分析精度")
+
+    def _load_preset_frequencies(self, preset_name: str):
+        """加载预设频点（按需匹配并去重）"""
+        frequencies = self.preset_frequencies[preset_name]
+
+        # 首先进行去重处理
+        frequencies = self._remove_duplicate_frequencies(frequencies)
+        logger.info(f"预设频点 '{preset_name}' 去重后包含 {len(frequencies)} 个频点")
+
+        # 🚀 性能优化：只对当前选择的预设进行频率匹配
+        if preset_name not in ["研究模式", "自定义"]:
+            try:
+                from utils.frequency_matcher import frequency_matcher
+                matched_frequencies = []
+                for freq in frequencies:
+                    matched_freq = frequency_matcher.find_closest_preset_frequency(freq)
+                    matched_frequencies.append(matched_freq)
+
+                # 频率匹配后再次去重（因为匹配可能产生新的重复）
+                frequencies = self._remove_duplicate_frequencies(matched_frequencies)
+                logger.debug(f"对{preset_name}进行了频率匹配和去重，最终 {len(frequencies)} 个频点")
+            except Exception as e:
+                logger.warning(f"频率匹配失败，使用原始频点: {e}")
+
+        self.frequency_list.clear()
+        for freq in frequencies:
+            item = QListWidgetItem(f"{freq:.3f}")
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
+            self.frequency_list.addItem(item)
+
+    def _add_frequency(self):
+        """添加频点 - 自动匹配到设备预设频点"""
+        input_freq = self.frequency_input.value()
+
+        try:
+            from utils.frequency_matcher import frequency_matcher
+
+            # 获取匹配的设备频点
+            matched_freq, freq_diff, is_exact = frequency_matcher.get_frequency_match_info(input_freq)
+
+            # 检查匹配后的频点是否已存在
+            for i in range(self.frequency_list.count()):
+                existing_freq = float(self.frequency_list.item(i).text())
+                if abs(existing_freq - matched_freq) < 0.001:
+                    QMessageBox.warning(self, "警告", f"设备频点 {matched_freq:.4f}Hz 已存在！")
+                    return
+
+            # 如果不是精确匹配，显示确认对话框
+            if not is_exact:
+                reply = QMessageBox.question(
+                    self, "频率匹配确认",
+                    f"输入频率: {input_freq:.3f}Hz\n"
+                    f"设备频点: {matched_freq:.3f}Hz\n"
+                    f"调整差值: {freq_diff:+.3f}Hz\n\n"
+                    f"系统将使用设备支持的精确频点 {matched_freq:.3f}Hz，\n"
+                    f"确定要添加此频点吗？",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+
+                if reply != QMessageBox.Yes:
+                    return
+
+            # 添加匹配后的频点
+            item = QListWidgetItem(f"{matched_freq:.3f}")
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
+            self.frequency_list.addItem(item)
+
+            # 自动切换到自定义模式
+            self.custom_radio.setChecked(True)
+
+            # 显示添加成功信息
+            if is_exact:
+                logger.info(f"添加精确匹配频点: {matched_freq:.4f}Hz")
+            else:
+                logger.info(f"添加匹配频点: {input_freq:.2f}Hz -> {matched_freq:.4f}Hz")
+
+            self._on_setting_changed()
+
+        except Exception as e:
+            logger.error(f"添加频点失败: {e}")
+            QMessageBox.critical(self, "错误", f"添加频点失败: {e}")
+            return
+
+    def _remove_frequency(self):
+        """删除选中的频点"""
+        selected_items = self.frequency_list.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "提示", "请先选择要删除的频点！")
+            return
+
+        # 保存要删除的项目信息，避免对话框显示后选择状态变化
+        items_to_delete = []
+        for item in selected_items:
+            items_to_delete.append({
+                'text': item.text(),
+                'row': self.frequency_list.row(item)
+            })
+
+        # 确认删除
+        if len(items_to_delete) == 1:
+            reply = QMessageBox.question(
+                self, "确认删除",
+                f"确定要删除频点 {items_to_delete[0]['text']} Hz 吗？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+        else:
+            reply = QMessageBox.question(
+                self, "确认删除",
+                f"确定要删除选中的 {len(items_to_delete)} 个频点吗？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+        if reply == QMessageBox.Yes:
+            # 删除选中的项目 - 修复bug：按行号从高到低删除，避免索引变化问题
+            rows_to_delete = []
+            for item_info in items_to_delete:
+                row = item_info['row']
+                if row >= 0:  # 确保行号有效
+                    rows_to_delete.append(row)
+
+            # 按行号从高到低排序，这样删除时不会影响前面项目的索引
+            rows_to_delete.sort(reverse=True)
+
+            # 执行删除操作
+            for row in rows_to_delete:
+                self.frequency_list.takeItem(row)
+
+            self.custom_radio.setChecked(True)
+            self._on_setting_changed()
+
+    def _clear_frequencies(self):
+        """清空频点"""
+        reply = QMessageBox.question(
+            self, "确认清空",
+            "确定要清空所有频点吗？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self.frequency_list.clear()
+            self.custom_radio.setChecked(True)
+            self._on_setting_changed()
+
+    def _sort_frequencies(self):
+        """排序频点"""
+        frequencies = []
+        for i in range(self.frequency_list.count()):
+            try:
+                freq = float(self.frequency_list.item(i).text())
+                frequencies.append(freq)
+            except ValueError:
+                continue
+
+        frequencies.sort()
+
+        self.frequency_list.clear()
+        for freq in frequencies:
+            item = QListWidgetItem(f"{freq:.3f}")
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
+            self.frequency_list.addItem(item)
+
+        self._on_setting_changed()
+
+    def _on_frequency_list_changed(self):
+        """频点列表变更处理"""
+        if not self._loading:
+            self.custom_radio.setChecked(True)
+            self._on_setting_changed()
+
+    def _show_context_menu(self, position):
+        """显示右键菜单"""
+        if not self.frequency_list.isEnabled():
+            return
+
+        item = self.frequency_list.itemAt(position)
+        menu = QMenu(self)
+
+        # 添加频点
+        add_action = QAction("添加频点", self)
+        add_action.triggered.connect(self._add_frequency)
+        menu.addAction(add_action)
+
+        if item:
+            # 编辑频点
+            edit_action = QAction("编辑频点", self)
+            edit_action.triggered.connect(lambda: self._edit_frequency_item(item))
+            menu.addAction(edit_action)
+
+            # 删除频点
+            delete_action = QAction("删除频点", self)
+            delete_action.triggered.connect(self._remove_frequency)
+            menu.addAction(delete_action)
+
+            menu.addSeparator()
+
+            # 复制频点
+            copy_action = QAction("复制频点", self)
+            copy_action.triggered.connect(lambda: self._copy_frequency(item))
+            menu.addAction(copy_action)
+
+        if self.frequency_list.count() > 0:
+            menu.addSeparator()
+
+            # 排序
+            sort_action = QAction("排序频点", self)
+            sort_action.triggered.connect(self._sort_frequencies)
+            menu.addAction(sort_action)
+
+            # 清空
+            clear_action = QAction("清空所有", self)
+            clear_action.triggered.connect(self._clear_frequencies)
+            menu.addAction(clear_action)
+
+        menu.exec_(self.frequency_list.mapToGlobal(position))
+
+    def _edit_frequency_item(self, item):
+        """编辑频点项目"""
+        if not item:
+            return
+
+        try:
+            current_value = float(item.text())
+        except ValueError:
+            current_value = 1.0
+
+        # 弹出输入对话框
+        value, ok = QInputDialog.getDouble(
+            self, "编辑频点",
+            "请输入新的频点值 (Hz):",
+            current_value, 0.01, 10000.0, 2
+        )
+
+        if ok:
+            # 检查是否与其他频点重复
+            for i in range(self.frequency_list.count()):
+                other_item = self.frequency_list.item(i)
+                if other_item != item:
+                    try:
+                        other_value = float(other_item.text())
+                        if abs(other_value - value) < 0.01:
+                            QMessageBox.warning(self, "警告", "该频点已存在！")
+                            return
+                    except ValueError:
+                        continue
+
+            # 更新频点值
+            item.setText(f"{value:.2f}")
+            self.custom_radio.setChecked(True)
+            self._on_setting_changed()
+
+    def _copy_frequency(self, item):
+        """复制频点"""
+        if not item:
+            return
+
+        try:
+            freq_value = float(item.text())
+
+            # 检查是否已存在
+            for i in range(self.frequency_list.count()):
+                try:
+                    existing_value = float(self.frequency_list.item(i).text())
+                    if abs(existing_value - freq_value) < 0.01:
+                        # 如果已存在，创建一个稍微不同的值
+                        freq_value += 0.01
+                        break
+                except ValueError:
+                    continue
+
+            # 添加复制的频点
+            new_item = QListWidgetItem(f"{freq_value:.3f}")
+            new_item.setFlags(new_item.flags() | Qt.ItemIsEditable)
+            self.frequency_list.addItem(new_item)
+
+            self.custom_radio.setChecked(True)
+            self._on_setting_changed()
+
+        except ValueError:
+            QMessageBox.warning(self, "错误", "无效的频点值！")
+
+    def _edit_selected_frequency(self):
+        """编辑选中的频点"""
+        selected_items = self.frequency_list.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "提示", "请先选择要修改的频点！")
+            return
+
+        if len(selected_items) > 1:
+            QMessageBox.information(self, "提示", "请只选择一个频点进行修改！")
+            return
+
+        self._edit_frequency_item(selected_items[0])
+
+    def _copy_selected_frequency(self):
+        """复制选中的频点"""
+        selected_items = self.frequency_list.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "提示", "请先选择要复制的频点！")
+            return
+
+        for item in selected_items:
+            self._copy_frequency(item)
+
+    def _on_setting_changed(self):
+        """设置变更处理"""
+        if not self._loading:
+            self.settings_changed.emit()
+
+    def load_settings(self):
+        """加载设置（优化版本）"""
+        self._loading = True
+        try:
+            # 🚀 性能优化：延迟初始化预设频点，避免阻塞设置页面加载
+            QTimer.singleShot(1000, self._ensure_preset_frequencies_initialized)
+
+            # 加载预设模式
+            preset_mode = self.config_manager.get('frequency.preset_mode', '生产模式')
+            for button in self.preset_button_group.buttons():
+                if button.text() == preset_mode:
+                    button.setChecked(True)
+                    break
+
+            # 加载频点列表
+            # 🚀 性能优化：使用默认频点，避免等待预设频点初始化
+            default_frequencies = [1.0, 10.0, 100.0, 1000.0]  # 生产模式默认频点
+            if self.preset_frequencies and '生产模式' in self.preset_frequencies:
+                default_frequencies = self.preset_frequencies['生产模式']
+
+            frequencies = self.config_manager.get('frequency.list', default_frequencies)
+
+            # 加载频点时进行去重处理
+            frequencies = self._remove_duplicate_frequencies(frequencies)
+
+            self.frequency_list.clear()
+            for freq in frequencies:
+                item = QListWidgetItem(f"{freq:.3f}")
+                item.setFlags(item.flags() | Qt.ItemIsEditable)
+                self.frequency_list.addItem(item)
+
+            # 🚫 智能优化设置加载已删除
+
+            logger.debug("频率设置加载完成")
+
+        except Exception as e:
+            logger.error(f"加载频率设置失败: {e}")
+        finally:
+            self._loading = False
+
+    def apply_settings(self):
+        """应用设置"""
+        try:
+            # 保存预设模式
+            for button in self.preset_button_group.buttons():
+                if button.isChecked():
+                    self.config_manager.set('frequency.preset_mode', button.text())
+                    break
+
+            # 🚫 智能优化模式特殊处理已删除
+            # 保存频点列表（自动去重）
+            frequencies = []
+            for i in range(self.frequency_list.count()):
+                item_text = self.frequency_list.item(i).text()
+
+                # 🚫 跳过智能优化模式的提示文本已删除
+
+                try:
+                    freq = float(item_text)
+                    frequencies.append(freq)
+                except ValueError:
+                    continue
+
+            # 去重处理
+            deduplicated_frequencies = self._remove_duplicate_frequencies(frequencies)
+            self.config_manager.set('frequency.list', deduplicated_frequencies)
+
+            # 🚫 智能优化设置应用已删除
+
+            logger.info("频率设置应用成功")
+
+        except Exception as e:
+            logger.error(f"应用频率设置失败: {e}")
+            raise
+
+    def validate_settings(self) -> bool:
+        """
+        验证设置
+
+        Returns:
+            是否验证通过
+        """
+        try:
+            # 🚫 智能优化模式特殊处理已删除
+
+            # 验证至少有一个频点（现在只支持多频点模式）
+            if self.frequency_list.count() == 0:
+                QMessageBox.warning(self, "验证失败", "至少需要一个频点！")
+                return False
+
+            # 验证频点值的有效性
+            for i in range(self.frequency_list.count()):
+                item_text = self.frequency_list.item(i).text()
+
+                # 🚫 跳过智能优化模式的提示文本已删除
+
+                try:
+                    freq = float(item_text)
+                    if freq <= 0 or freq > 10000:
+                        QMessageBox.warning(self, "验证失败", f"频点值 {freq} 超出有效范围 (0.01-10000 Hz)！")
+                        return False
+                except ValueError:
+                    QMessageBox.warning(self, "验证失败", f"频点值 '{item_text}' 不是有效数字！")
+                    return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"验证频率设置失败: {e}")
+            return False
+
+    def _on_frequency_input_changed(self, value):
+        """频率输入变更处理 - 显示匹配提示"""
+        try:
+            from utils.frequency_matcher import frequency_matcher
+
+            # 获取匹配信息
+            matched_freq, freq_diff, is_exact = frequency_matcher.get_frequency_match_info(value)
+
+            if is_exact:
+                # 精确匹配
+                self.frequency_match_label.setText(f"✅ 精确匹配设备预设频点: {matched_freq:.3f}Hz")
+                self.frequency_match_label.setStyleSheet("color: #008000; font-size: 11px; padding: 2px;")
+            else:
+                # 需要调整
+                self.frequency_match_label.setText(f"📍 将匹配到设备预设频点: {matched_freq:.3f}Hz (调整: {freq_diff:+.3f}Hz)")
+                self.frequency_match_label.setStyleSheet("color: #FF8C00; font-size: 11px; padding: 2px;")
+
+            self.frequency_match_label.show()
+
+        except Exception as e:
+            logger.error(f"频率匹配提示失败: {e}")
+            self.frequency_match_label.hide()
+
+
+
+    def get_current_preset_name(self) -> str:
+        """获取当前选中的预设配置名称"""
+        for button in self.preset_button_group.buttons():
+            if button.isChecked():
+                return button.text()
+        return "自定义"
+
+    def get_current_frequencies(self) -> list:
+        """获取当前的频点列表（自动去重）"""
+        # 🚫 智能优化模式特殊处理已删除
+
+        frequencies = []
+        for i in range(self.frequency_list.count()):
+            item_text = self.frequency_list.item(i).text()
+
+            # 🚫 跳过智能优化模式的提示文本已删除
+
+            try:
+                freq = float(item_text)
+                frequencies.append(freq)
+            except ValueError:
+                continue
+
+        # 自动去重并排序
+        return self._remove_duplicate_frequencies(frequencies)
+
+    def is_impedance_optimized_preset(self) -> tuple:
+        """
+        检查当前是否使用阻抗优化的预设配置
+
+        Returns:
+            (is_optimized, impedance_type):
+            - is_optimized: 是否为阻抗优化配置
+            - impedance_type: 阻抗类型 ('ultra_low', 'high', 'standard')
+        """
+        preset_name = self.get_current_preset_name()
+
+        if preset_name == "<1mΩ内阻频点":
+            return True, 'ultra_low'
+        elif preset_name == ">10mΩ内阻频点":
+            return True, 'high'
+        else:
+            return False, 'standard'
+
+    def on_tab_activated(self):
+        """选项卡激活时调用"""
+        # 初始化频率匹配提示
+        self._on_frequency_input_changed(self.frequency_input.value())
+
+        # 🚫 智能优化统计信息更新已删除
+
+    # 🚫 智能频点优化相关方法已删除
+
+    # 🚫 智能优化启用状态变更方法已删除
+
+    # 🚫 智能优化统计信息更新方法已删除
+
+    # 🚫 查看优化模板方法已删除
+
+    # 🚫 清空优化模板方法已删除
+
+    # 🚫 智能优化设置加载方法已删除
+
+    # 🚫 智能优化设置应用方法已删除

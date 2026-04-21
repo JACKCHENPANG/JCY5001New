@@ -1,0 +1,331 @@
+{
+  "app": {
+    "name": "JCY5001A鲸测云8路EIS阻抗筛选仪",
+    "version": "V0.92.40",
+    "trial_days": 30,
+    "start_date": null,
+    "show_startup_license_dialog": false
+  },
+  "ui": {
+    "theme": "light",
+    "language": "zh_CN",
+    "window_size": [
+      1280,
+      800
+    ],
+    "window_position": [
+      100,
+      100
+    ],
+    "auto_save_layout": true,
+    "window": {
+      "maximized": true,
+      "fullscreen": false
+    }
+  },
+  "batch_info": {
+    "batch_number": "BATCH-20250709-001",
+    "operator": "2222",
+    "cell_type": "磷酸铁锂",
+    "cell_spec": "21700",
+    "standard_voltage": 3.2,
+    "standard_capacity": 3000,
+    "standard_capacity_unit": "mAh",
+    "new_resistance": 6.0,
+    "eol_resistance": 12.0
+  },
+  "test_params": {
+    "test_mode": "simultaneous",
+    "gain": "auto",
+    "average_times": 1,
+    "battery_range": "10mΩ以下",
+    "resistance_range": "10R",
+    "voltage_range": {
+      "min": 3.05,
+      "max": 3.37
+    },
+    "critical_frequency": 10.0
+  },
+  "frequency": {
+    "mode": "multi",
+    "list": [
+      1007.083,
+      625.612,
+      389.1,
+      242.234,
+      150.681,
+      93.46,
+      57.221,
+      36.24,
+      22.888,
+      13.351,
+      11.444,
+      9.537,
+      7.629,
+      5.722,
+      3.815,
+      1.907,
+      0.954,
+      0.477,
+      0.238,
+      0.119
+    ],
+    "multi_freq": {
+      "preset": "磷酸铁锂",
+      "custom_list": [
+        0.119,
+        1,
+        10,
+        100,
+        1000
+      ],
+      "min_freq": 0.01,
+      "max_freq": 7800,
+      "points": 20,
+      "distribution": "log"
+    },
+    "preset_mode": "研究模式",
+    "frequency_order": "high_to_low"
+  },
+  "test": {
+    "continuous_mode": false,
+    "continuous_mode_delay": 2.0,
+    "auto_detect": false,
+    "data_optimization": true,
+    "optimization_delay": 0.5,
+    "enabled_channels": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "battery_coding": {
+      "mode": "scan",
+      "length_check": true,
+      "expected_length": 12,
+      "auto_rule": "BATCH_{batch}_{index:04d}"
+    },
+    "label_print": {
+      "enabled": false,
+      "code_type": "qr"
+    },
+    "timeout": 60,
+    "retry_count": 2,
+    "interval": 2,
+    "count_limit_enabled": false,
+    "max_count": 100,
+    "use_parallel_staggered_mode": false,
+    "capacity_prediction_enabled": false
+  },
+  "battery_detection": {
+    "enabled": true,
+    "voltage_threshold_remove": 5.0,
+    "voltage_threshold_min": 2.0,
+    "voltage_threshold_max": 5.0,
+    "detection_interval": 1.0,
+    "stable_count_required": 3,
+    "auto_restart_delay": 2.0
+  },
+  "device": {
+    "connection": {
+      "port": "COM13",
+      "baudrate": 115200,
+      "timeout": 1.0,
+      "last_port": "COM13"
+    },
+    "channels": 8,
+    "printer": {
+      "name": "",
+      "connected": false
+    },
+    "barcode_scanner": {
+      "enabled": false,
+      "serial_length_min": 8,
+      "serial_length_max": 20,
+      "format_validation": true,
+      "allowed_chars": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+      "uniqueness_check": true,
+      "auto_generation": {
+        "enabled": true,
+        "prefix": "BAT",
+        "date_format": "YYYYMMDD",
+        "sequence_digits": 4,
+        "separator": "-"
+      }
+    },
+    "auto_connect": true,
+    "auto_reconnect": true,
+    "reconnect_interval": 30
+  },
+  "grade_settings": {
+    "rs_grades": 3,
+    "rct_grades": 3,
+    "rs_boundaries": [
+      5.0,
+      10.0
+    ],
+    "rct_boundaries": [
+      8.0,
+      15.0
+    ],
+    "rs_grade_count": 3,
+    "rs_min": 0.5,
+    "rs_max": 50.0,
+    "rs_auto_calc": true,
+    "rs1_max": 17.0,
+    "rs2_max": 33.5,
+    "rs3_max": 50.0,
+    "rct_min": 5.0,
+    "rct_max": 100.0,
+    "rct_auto_calc": true,
+    "rct1_max": 36.66666666666667,
+    "rct2_max": 68.33333333333334,
+    "rct3_max": 100.0,
+    "battery_type": 0,
+    "standard_voltage": 3.21,
+    "auto_calc_range": true,
+    "min_voltage": 3.05,
+    "max_voltage": 3.37,
+    "voltage_diff": 0.16
+  },
+  "database": {
+    "path": "data/test_results.db",
+    "backup_enabled": true,
+    "backup_interval": 24
+  },
+  "printer": {
+    "type": "热敏打印机",
+    "name": "NIIMBOT K3_W",
+    "connection": "USB",
+    "quality": "高质量",
+    "density": "high",
+    "contrast": "high"
+  },
+  "label_print": {
+    "auto_print": true,
+    "print_pass_only": false,
+    "copies": 1,
+    "quality": "高质量",
+    "font_enhancement": true,
+    "bold_enhancement": true
+  },
+  "logging": {
+    "enable_system_log": true,
+    "level": "INFO",
+    "debug_mode": false
+  },
+  "communication": {
+    "enable_logging": false,
+    "protocol": "Modbus RTU",
+    "baudrate": "115200",
+    "timeout": 1.0
+  },
+  "storage_management": {
+    "database_size_limit_mb": 500,
+    "log_size_limit_mb": 50,
+    "warning_threshold_percent": 80,
+    "auto_cleanup_enabled": true,
+    "cleanup_frequency_days": 3,
+    "log_retention_days": 15,
+    "data_archive_days": 90,
+    "temp_file_cleanup_enabled": true,
+    "last_cleanup_time": "2025-07-09T05:53:07.822230",
+    "storage_monitoring_enabled": true,
+    "monitoring_interval_minutes": 60
+  },
+  "product": {
+    "battery_spec": "21700",
+    "batch_number": "BATCH-20250709-001",
+    "operator": "2222",
+    "production_date": "周三 7月 9 2025",
+    "remarks": "",
+    "battery_type": "磷酸铁锂",
+    "standard_voltage": 3.2,
+    "capacity": 314,
+    "capacity_unit": "Ah"
+  },
+  "probe_pin": {
+    "warning_threshold": 1000,
+    "max_lifetime": 10000
+  },
+  "impedance": {
+    "rs_grade1_max": 17.0,
+    "rs_grade2_max": 33.5,
+    "rs_grade3_max": 50.0,
+    "rs_grade_count": 3,
+    "rct_grade1_max": 35.0,
+    "rct_grade2_max": 70.0,
+    "rct_grade3_max": 100.0,
+    "rct_grade_count": 3,
+    "rs_min": 0.5,
+    "rct_min": 5.0
+  },
+  "voltage_standard_voltage": 3.21,
+  "voltage_min_voltage": 3.05,
+  "voltage_max_voltage": 3.37,
+  "voltage_voltage_diff": 0.16,
+  "voltage_auto_calc_range": true,
+  "voltage_tolerance_percent": 5.0,
+  "voltage_battery_type": 0,
+  "outlier_is_enabled": false,
+  "outlier_channel_mode": "average_all",
+  "outlier_deviation_threshold": 10.0,
+  "data": {
+    "optimization": true,
+    "outlier_filter": true,
+    "smoothing": false,
+    "smoothing_strength": 5,
+    "auto_save": true,
+    "save_raw": false
+  },
+  "label": {
+    "auto_print": false,
+    "print_pass_only": true,
+    "copies": 1
+  },
+  "capacity_prediction": {
+    "voltage_min": 3.0,
+    "voltage_max": 3.4,
+    "rs_min": 0.1,
+    "rs_max": 5.0,
+    "min_data_count": 20,
+    "enable_prediction": false,
+    "prediction_mode": "线性回归",
+    "prediction_accuracy": 10.0,
+    "show_predicted_capacity": false,
+    "capacity_unit": "AH",
+    "display_precision": 3,
+    "auto_update_model": false,
+    "model_update_frequency": 7,
+    "min_training_samples": 50
+  },
+  "soh_prediction": {
+    "prediction_method": "rct_based",
+    "enable_soh": true,
+    "enable_capacity": true,
+    "quality_control": {
+      "min_soh": 0.0,
+      "max_soh": 100.0,
+      "outlier_threshold": 3.0
+    },
+    "display_settings": {
+      "soh_precision": 1,
+      "capacity_precision": 3
+    },
+    "battery_coefficients": {}
+  },
+  "test_count": {
+    "channel_2": 5,
+    "channel_3": 5,
+    "channel_4": 5,
+    "channel_5": 5,
+    "channel_1": 4,
+    "channel_6": 4,
+    "channel_7": 4,
+    "channel_8": 4
+  }
+}

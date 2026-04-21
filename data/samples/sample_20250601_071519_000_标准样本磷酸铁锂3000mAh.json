@@ -1,0 +1,56 @@
+{
+  "info": {
+    "brand": "宁德时代",
+    "cell_type": "磷酸铁锂",
+    "capacity_value": 3000,
+    "capacity_unit": "mAh",
+    "capacity_display": "3000mAh",
+    "standard_value": 1.5,
+    "tolerance_percent": 5.0,
+    "standard_impedance_display": "1.500mΩ±5.0%",
+    "sample_name": "标准样本_磷酸铁锂_3000mAh",
+    "description": "宁德时代磷酸铁锂电池标准样本，用于生产线质量控制"
+  },
+  "median_data": {
+    "1": {
+      "1000.0": {
+        "real": 0.5,
+        "imag": 0.3,
+        "z_value": 0.583,
+        "count": 8
+      },
+      "500.0": {
+        "real": 0.6,
+        "imag": 0.4,
+        "z_value": 0.721,
+        "count": 8
+      },
+      "100.0": {
+        "real": 0.8,
+        "imag": 0.6,
+        "z_value": 1.0,
+        "count": 8
+      },
+      "50.0": {
+        "real": 1.0,
+        "imag": 0.8,
+        "z_value": 1.281,
+        "count": 8
+      }
+    }
+  },
+  "analysis_result": {
+    "deviation_analysis": {
+      "statistics": {
+        "total_points": 32,
+        "within_threshold_points": 32,
+        "within_threshold_rate": 100.0,
+        "max_deviation": 2.8
+      }
+    },
+    "is_qualified": true
+  },
+  "created_at": "2025-06-01T07:15:19.768853",
+  "threshold": 10.0,
+  "mode": "固定通道号模式"
+}

@@ -1,0 +1,38 @@
+{
+  "communication": {
+    "timeout": 0.3,
+    "retry_count": 1,
+    "retry_delay": 0.01,
+    "command_delay": 10,
+    "response_timeout": 0.3,
+    "polling_interval": 0.05
+  },
+  "staggered_delay": {
+    "enable": true,
+    "high_frequency_delay": 10,
+    "medium_frequency_delay": 15,
+    "low_frequency_delay": 25,
+    "ultra_low_frequency_delay": 0
+  },
+  "ui_optimization": {
+    "progress_update_interval": 1.0,
+    "performance_monitor_interval": 2000,
+    "status_check_interval": 3,
+    "batch_update_enabled": true
+  },
+  "measurement": {
+    "enable_smart_timeout": true,
+    "enable_early_completion": false,
+    "stability_detection": false,
+    "adaptive_timeout": true,
+    "max_timeout_reduction": 0.3
+  },
+  "performance_stats": {
+    "optimization_start_time": null,
+    "total_tests": 0,
+    "average_test_time": 0.0,
+    "time_saved": 0.0,
+    "optimization_efficiency": 0.0
+  },
+  "last_updated": "2025-06-10 19:12:47"
+}

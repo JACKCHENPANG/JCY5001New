@@ -1,0 +1,89 @@
+# JCY5001AS鲸测云8路EIS阻抗筛选仪产线界面
+# 运行时依赖包列表
+# Author: Jack
+# Date: 2025-08-11
+
+# ===== 核心GUI框架 =====
+PyQt5==5.15.9
+PyQt5-Qt5==5.15.2
+PyQt5_sip==12.17.0
+PyQtChart==5.15.7
+PyQtChart-Qt5==5.15.2
+
+# ===== 数据处理和科学计算 =====
+numpy==2.4.4
+pandas==2.3.0
+scipy==1.15.2
+matplotlib==3.7.5
+scikit-learn==1.7.0
+
+# ===== 数据库相关 =====
+SQLAlchemy==2.0.40
+psycopg2-binary==2.9.10
+
+# ===== 串口通信 =====
+pyserial==3.5
+pymodbus==3.9.2
+
+# ===== 文件处理 =====
+openpyxl==3.1.5
+XlsxWriter==3.2.3
+python-docx==1.1.2
+reportlab==4.3.1
+
+# ===== 图像和条码处理 =====
+pillow==11.1.0
+qrcode==8.2
+python-barcode==0.15.1
+
+# ===== 网络和HTTP =====
+requests==2.31.0
+urllib3==2.3.0
+
+# ===== 加密和安全 =====
+cryptography==41.0.5
+bcrypt==4.3.0
+
+# ===== 配置和数据格式 =====
+PyYAML==6.0.2
+lxml==5.4.0
+
+# ===== 系统和进程管理 =====
+psutil==7.0.0
+pywin32==310
+
+# ===== 日期时间处理 =====
+python-dateutil==2.8.2
+pytz==2025.1
+
+# ===== 开发和调试工具 =====
+pytest==7.4.3
+
+# ===== 可选依赖（用于特定功能） =====
+# 阻抗分析
+impedance==1.7.1
+
+# 图形绘制增强
+pyqtgraph==0.13.3
+mplcursors==0.6
+seaborn==0.13.2
+
+# 打印机支持
+python-escpos==3.1
+
+# Web服务（如果需要）
+Flask==3.1.0
+flask-cors==6.0.0
+
+# 异步支持
+aiofiles==23.2.1
+
+# ===== 说明 =====
+# 安装命令：
+# pip install -r requirements.txt
+#
+# 如果遇到安装问题，可以尝试：
+# pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
+#
+# 或者分别安装核心依赖：
+# pip install PyQt5 numpy pandas matplotlib pyserial psycopg2-binary openpyxl

@@ -1,0 +1,583 @@
+# -*- coding: utf-8 -*-
+"""
+同时测试执行器
+从ParallelStaggeredTestManager中提取的同时测试执行相关功能
+
+职责：
+- 同时测试执行
+- 低频点测试管理
+- 同时模式监控
+- 同时数据读取
+
+Author: Jack
+Date: 2025-01-30
+"""
+
+import logging
+import time
+from typing import Dict, List, Optional, Callable, Any
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+
+class SimultaneousTestState(Enum):
+    """同时测试状态"""
+    IDLE = "idle"
+    SETTING_FREQUENCY = "setting_frequency"
+    STARTING_MEASUREMENT = "starting_measurement"
+    MONITORING = "monitoring"
+    READING_DATA = "reading_data"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
+class SimultaneousTestExecutor:
+    """
+    同时测试执行器
+    
+    职责：
+    - 执行同时测试流程
+    - 管理低频点测试
+    - 监控同时测试完成状态
+    - 读取同时测试数据
+    """
+    
+    def __init__(self, comm_manager, frequency_classifier, stop_event=None):
+        """
+        初始化同时测试执行器
+        
+        Args:
+            comm_manager: 通信管理器
+            frequency_classifier: 频率分类器
+            stop_event: 停止事件
+        """
+        self.comm_manager = comm_manager
+        self.frequency_classifier = frequency_classifier
+        self.stop_event = stop_event
+        
+        self.state = SimultaneousTestState.IDLE
+        self.test_results: Dict[float, Dict[int, Any]] = {}
+        
+        # 回调函数
+        self.channel_progress_callback: Optional[Callable] = None
+        
+        # 状态码管理器
+        from backend.device_status_manager import DeviceStatusManager
+        self.status_manager = DeviceStatusManager()
+        
+        logger.debug("同时测试执行器初始化完成")
+    
+    def set_channel_progress_callback(self, callback: Callable):
+        """设置通道进度回调函数"""
+        self.channel_progress_callback = callback
+    
+    def execute_low_frequency_test(self, enabled_channels: List[int], config: Any) -> bool:
+        """
+        执行低频点同时测试
+        
+        Args:
+            enabled_channels: 启用的通道列表
+            config: 测试配置
+            
+        Returns:
+            是否测试成功
+        """
+        try:
+            # 🔧 修复：不再重置进度记录，确保进度连续性
+            # 初始化进度记录（如果不存在）
+            if not hasattr(self, 'last_progress'):
+                self.last_progress = {}
+            
+            if not hasattr(self, 'exception_channels'):
+                self.exception_channels = set()
+            
+            logger.debug("同时测试进度记录已初始化（保持连续性）")
+
+            low_frequencies = self.frequency_classifier.get_low_frequencies()
+
+            if not low_frequencies:
+                logger.info("没有低频点，跳过同时测试")
+                return True
+
+            logger.info(f"开始低频点同时测试: {len(low_frequencies)}个频点")
+
+            # 逐个测试低频点（使用同时模式）
+            for frequency in low_frequencies:
+                # 🔧 修复：在每个频点开始前检查停止事件
+                if self.stop_event and self.stop_event.is_set():
+                    logger.info("同时测试被用户停止")
+                    return False
+
+                logger.info(f"测试低频点: {frequency}Hz (同时模式)")
+
+                # 🔧 修复：通知频率前检查停止事件
+                if self.stop_event and self.stop_event.is_set():
+                    logger.info("同时测试在通知频率前被用户停止")
+                    return False
+
+                # 通知频率设置
+                self._notify_simultaneous_frequencies(frequency, enabled_channels, config)
+
+                # 🔧 修复：设置频率前检查停止事件
+                if self.stop_event and self.stop_event.is_set():
+                    logger.info("同时测试在设置频率前被用户停止")
+                    return False
+
+                # 设置频率
+                if not self.comm_manager.set_frequency_broadcast(frequency):
+                    logger.error(f"设置频率{frequency}Hz失败")
+                    continue
+
+                # 🔧 修复：启动测试前检查停止事件
+                if self.stop_event and self.stop_event.is_set():
+                    logger.info("同时测试在启动测试前被用户停止")
+                    return False
+
+                # 启动测试
+                if not self.comm_manager.start_impedance_measurement_broadcast(enabled_channels):
+                    logger.error(f"启动频率{frequency}Hz测试失败")
+                    continue
+
+                # 🔧 修复：监控前检查停止事件
+                if self.stop_event and self.stop_event.is_set():
+                    logger.info("同时测试在监控前被用户停止")
+                    return False
+
+                # 等待完成（这个方法内部已经有停止事件检查）
+                if not self._monitor_simultaneous_completion(enabled_channels, config):
+                    logger.error(f"频率{frequency}Hz测试超时")
+                    continue
+
+                # 🔧 修复：读取数据前检查停止事件
+                if self.stop_event and self.stop_event.is_set():
+                    logger.info("同时测试在读取数据前被用户停止")
+                    return False
+
+                # 读取数据
+                if not self._read_simultaneous_data(frequency, enabled_channels):
+                    logger.error(f"读取频率{frequency}Hz数据失败")
+                    continue
+
+                # 🔧 修复：通知完成前检查停止事件
+                if self.stop_event and self.stop_event.is_set():
+                    logger.info("同时测试在通知完成前被用户停止")
+                    return False
+
+                # 🔧 修复：在数据读取完成后，通知频点完成并更新进度
+                self._notify_frequency_completed(frequency, config)
+
+                logger.info(f"频率{frequency}Hz测试完成")
+
+            # 🔧 新增：所有频点完成后，通知测试完成
+            logger.info("低频点同时测试完成，通知所有通道测试完成")
+            self.notify_test_completion(enabled_channels)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"低频点测试失败: {e}")
+            return False
+    
+    def _monitor_simultaneous_completion(self, enabled_channels: List[int], config: Any) -> bool:
+        """
+        监控同时测试完成状态
+
+        Args:
+            enabled_channels: 启用的通道列表
+            config: 测试配置
+
+        Returns:
+            是否所有通道都完成测试
+        """
+        try:
+            timeout = config.timeout_seconds
+            start_time = time.time()
+            completed_channels = set()
+
+            logger.debug("开始监控同时测试完成状态")
+
+            while time.time() - start_time < timeout:
+                # 检查停止事件
+                if self.stop_event and self.stop_event.is_set():
+                    logger.info("同时测试监控被用户停止")
+                    return False
+
+                elapsed_time = time.time() - start_time
+
+                # 群发读取状态码
+                statuses = self.comm_manager.get_measurement_status_broadcast()
+
+                if not statuses or len(statuses) < max(enabled_channels) + 1:
+                    logger.debug("状态读取失败，继续监控")
+                    time.sleep(config.status_check_interval)
+                    continue
+
+                # 检查启用通道的状态
+                current_completed = set()
+                skipped_channels = set()
+
+                for channel_index in enabled_channels:
+                    if channel_index < len(statuses):
+                        status = statuses[channel_index]
+
+                        # 检查状态码
+                        status_info = self.status_manager.get_channel_status_info(channel_index, status)
+
+                        if status == 0x0006:  # 测量完成
+                            current_completed.add(channel_index)
+                        elif status_info.should_skip:  # 需要跳过的状态（包括0x0003等）
+                            if channel_index not in skipped_channels:
+                                skipped_channels.add(channel_index)
+                                logger.warning(f"通道{channel_index + 1}状态异常，跳过测试: {status_info.description} (0x{status:04X})")
+
+                                # 🔧 修复：使用新的异常处理方法
+                                self.handle_channel_exception(
+                                    channel_index + 1,
+                                    f"{status_info.description} (0x{status:04X})",
+                                    enabled_channels
+                                )
+
+                            # 将跳过的通道视为已完成
+                            current_completed.add(channel_index)
+
+                # 检查是否有新完成的通道
+                newly_completed = current_completed - completed_channels
+                if newly_completed:
+                    for ch_idx in newly_completed:
+                        logger.debug(f"通道{ch_idx + 1}同时测量完成")
+                    completed_channels = current_completed
+
+                # 检查是否全部完成
+                if len(completed_channels) == len(enabled_channels):
+                    logger.debug(f"所有通道同时测量完成，耗时: {elapsed_time:.3f}秒")
+                    return True
+
+                time.sleep(config.status_check_interval)
+
+            # 超时处理
+            elapsed_time = time.time() - start_time
+            logger.error(f"同时测试超时: {elapsed_time:.3f}秒")
+            return False
+
+        except Exception as e:
+            logger.error(f"监控同时测试完成失败: {e}")
+            return False
+    
+    def _read_simultaneous_data(self, frequency: float, enabled_channels: List[int]) -> bool:
+        """
+        读取同时测试数据
+
+        Args:
+            frequency: 测试频率
+            enabled_channels: 启用的通道列表
+
+        Returns:
+            是否读取成功
+        """
+        try:
+            logger.debug(f"读取同时测试数据: {frequency}Hz")
+
+            # 批量读取阻抗数据
+            impedance_data = self.comm_manager.read_impedance_data_broadcast()
+
+            if not impedance_data:
+                logger.error(f"读取频率{frequency}Hz阻抗数据失败")
+                return False
+
+            # 检查数据格式 - 实际返回格式是 {channel_index: {'real': value, 'imag': value}}
+            if not isinstance(impedance_data, dict) or not impedance_data:
+                logger.error("阻抗数据格式错误或为空")
+                return False
+
+            # 保存数据
+            if frequency not in self.test_results:
+                self.test_results[frequency] = {}
+
+            for channel_index in enabled_channels:
+                if channel_index in impedance_data:
+                    channel_raw_data = impedance_data[channel_index]
+
+                    # 检查通道数据格式
+                    if not isinstance(channel_raw_data, dict) or 'real' not in channel_raw_data or 'imag' not in channel_raw_data:
+                        logger.warning(f"通道{channel_index + 1}数据格式错误: {channel_raw_data}")
+                        continue
+
+                    # 构建通道数据
+                    channel_data = {
+                        'real_impedance': channel_raw_data['real'],
+                        'imaginary_impedance': channel_raw_data['imag'],
+                        'magnitude': (channel_raw_data['real']**2 + channel_raw_data['imag']**2)**0.5,
+                        'phase': 0.0  # 可以后续计算
+                    }
+
+                    self.test_results[frequency][channel_index] = channel_data
+                    logger.debug(f"保存通道{channel_index + 1}频点{frequency}Hz数据: Re={channel_raw_data['real']:.3f}μΩ, Im={channel_raw_data['imag']:.3f}μΩ")
+                else:
+                    logger.warning(f"通道{channel_index + 1}数据缺失")
+
+            logger.debug(f"频率{frequency}Hz同时测试数据读取完成")
+            return True
+
+        except Exception as e:
+            logger.error(f"读取频率{frequency}Hz同时测试数据失败: {e}")
+            return False
+    
+    def _notify_simultaneous_frequencies(self, frequency: float, enabled_channels: List[int], config: Any):
+        """
+        通知同时模式的频率设置
+
+        Args:
+            frequency: 测试频率
+            enabled_channels: 启用的通道列表
+            config: 测试配置
+        """
+        if self.channel_progress_callback:
+            try:
+                total_frequencies = len(config.frequencies)
+                completed_frequencies = len(self.test_results)
+
+                # 🔧 修复：添加详细的进度计算日志
+                logger.debug(f"🔍 [进度计算] 同时测试进度计算: 已完成频点={completed_frequencies}, 总频点={total_frequencies}, 当前频率={frequency}Hz")
+
+                # 🔧 修复：使用统一的进度计算基础，确保与完成时的计算一致
+                # 基础进度：已完成频点的进度 (0-100%)
+                # 计算高频测试完成后的基础进度（45%）
+                high_freq_count = len(self.frequency_classifier.get_high_frequencies())
+                low_freq_count = len(self.frequency_classifier.get_low_frequencies())
+                
+                # 🔧 修复：初始化 low_freq_progress_ratio 变量
+                low_freq_progress_ratio = 0.0
+                
+                if high_freq_count > 0 and low_freq_count > 0:
+                    # 高频测试占总进度的45%
+                    high_freq_progress = 45.0
+                    # 低频测试占总进度的55%
+                    low_freq_base = high_freq_progress
+                    # 当前低频测试的进度比例
+                    low_freq_progress_ratio = (completed_frequencies / low_freq_count) * 55.0
+                    # 总进度 = 高频基础进度 + 当前低频进度
+                    base_progress = low_freq_base + low_freq_progress_ratio
+                else:
+                    # 如果没有高频测试，则低频测试占100%
+                    base_progress = (completed_frequencies / total_frequencies) * 100.0
+                
+                # 当前频点的启动进度 (2%)
+                current_freq_progress = 2.0
+                # 总进度，但不超过100%
+                calculated_progress = min(100.0, base_progress + current_freq_progress)
+                progress = int(calculated_progress)
+                
+                logger.debug(f"🔍 [进度计算详情] 高频数={high_freq_count}, 低频数={low_freq_count}, 高频基础={high_freq_progress if high_freq_count > 0 else 0}%, 低频已完成={completed_frequencies}/{low_freq_count}, 低频进度={low_freq_progress_ratio if low_freq_count > 0 else 0}%, 总进度={calculated_progress:.1f}%")
+
+                for channel_index in enabled_channels:
+                    channel_num = channel_index + 1  # 转换为1-8的通道号
+                    
+                    # 🔧 确保进度不会回退：如果计算出的进度小于之前的进度，使用之前的进度
+                    if hasattr(self, 'last_progress'):
+                        last_channel_progress = self.last_progress.get(channel_num, 0)
+                        if progress < last_channel_progress:
+                            progress = last_channel_progress
+                            logger.debug(f"通道{channel_num}进度保护: {calculated_progress:.1f}% -> {progress}% (防止回退)")
+                        else:
+                            self.last_progress[channel_num] = progress
+                    else:
+                        self.last_progress = {}
+                        self.last_progress[channel_num] = progress
+
+                    # 🔧 修复：添加进度计算详细日志
+                    logger.debug(f"🔍 [进度计算] 通道{channel_num}: 进度={progress}% (基础{base_progress:.1f}% + 启动{current_freq_progress}%), 频率={frequency}Hz, 已完成{completed_frequencies}/{total_frequencies}频点")
+
+                    # 构建进度数据
+                    progress_data = {
+                        'state': 'testing',
+                        'progress': progress,
+                        'message': f'同时测试: {frequency}Hz',
+                        'frequency': frequency,  # 所有通道使用相同频率
+                        'frequency_index': completed_frequencies + 1,
+                        'total_frequencies': total_frequencies,
+                        'mode': 'simultaneous',  # 标识为同时模式
+                        'base_frequency': frequency
+                    }
+
+                    # 调用通道进度回调
+                    self.channel_progress_callback(channel_num, progress_data)
+
+                logger.debug(f"通知所有通道频率: {frequency}Hz (同时模式)")
+
+            except Exception as e:
+                logger.error(f"同时频率通知失败: {e}")
+
+    def _notify_frequency_completed(self, frequency: float, config: Any):
+        """
+        通知频点完成，更新进度
+
+        Args:
+            frequency: 完成的频率
+            config: 测试配置
+        """
+        if self.channel_progress_callback:
+            try:
+                total_frequencies = len(config.frequencies)
+                completed_frequencies = len(self.test_results)
+
+                # 🔧 修复：频点完成后的精确进度计算
+                # 确保进度计算的一致性和单调递增
+                if completed_frequencies >= total_frequencies:
+                    # 所有频点完成，设置为100%
+                    final_progress = 100
+                    logger.debug(f"同时测试全部完成，进度: {final_progress}%")
+                else:
+                    # 计算高频测试完成后的基础进度（45%）
+                    high_freq_count = len(self.frequency_classifier.get_high_frequencies())
+                    low_freq_count = len(self.frequency_classifier.get_low_frequencies())
+                    
+                    if high_freq_count > 0 and low_freq_count > 0:
+                        # 高频测试占总进度的45%
+                        high_freq_progress = 45.0
+                        # 低频测试占总进度的55%
+                        low_freq_base = high_freq_progress
+                        # 当前低频测试的进度比例
+                        low_freq_progress = (completed_frequencies / low_freq_count) * 55.0
+                        # 总进度 = 高频基础进度 + 当前低频进度
+                        base_progress = low_freq_base + low_freq_progress
+                    else:
+                        # 如果没有高频测试，则低频测试占100%
+                        base_progress = (completed_frequencies / total_frequencies) * 100.0
+                    
+                    final_progress = int(base_progress)
+                    logger.debug(f"同时测试频点{frequency}Hz完成，进度: {final_progress}% (已完成{completed_frequencies}/{low_freq_count}低频点)")
+
+                # 通知所有启用的通道进度更新
+                for channel_index in config.enabled_channels:
+                    channel_num = channel_index + 1
+
+                    # 🔧 确保进度不会回退：检查之前的进度
+                    channel_final_progress = final_progress
+                    if hasattr(self, 'last_progress'):
+                        last_channel_progress = self.last_progress.get(channel_num, 0)
+                        if channel_final_progress < last_channel_progress:
+                            channel_final_progress = last_channel_progress
+                            logger.debug(f"通道{channel_num}完成进度保护: {final_progress}% -> {channel_final_progress}% (防止回退)")
+                        else:
+                            self.last_progress[channel_num] = channel_final_progress
+                    else:
+                        self.last_progress = {}
+                        self.last_progress[channel_num] = channel_final_progress
+
+                    # 🔧 修复：根据完成状态设置正确的测试状态
+                    test_state = 'completed' if channel_final_progress >= 100 else 'testing'
+
+                    progress_data = {
+                        'state': test_state,
+                        'progress': channel_final_progress,
+                        'message': f'同时测试频点{frequency}Hz完成' if test_state == 'testing' else '测试完成',
+                        'frequency': frequency,
+                        'frequency_index': completed_frequencies,
+                        'total_frequencies': total_frequencies,
+                        'mode': 'simultaneous_completed',  # 标识为同时测试完成
+                        'completed_frequency': frequency
+                    }
+
+                    # 调用通道进度回调
+                    self.channel_progress_callback(channel_num, progress_data)
+
+                    logger.debug(f"通道{channel_num}同时测试进度更新: {channel_final_progress}% (频点{frequency}Hz完成, 状态={test_state})")
+
+            except Exception as e:
+                logger.error(f"同时测试频点完成通知失败: {e}")
+
+    def handle_channel_exception(self, channel_num: int, error_message: str, enabled_channels: List[int]):
+        """
+        处理通道异常，确保异常通道不影响正常通道进度
+
+        Args:
+            channel_num: 异常通道号 (1-8)
+            error_message: 错误消息
+            enabled_channels: 启用的通道列表
+        """
+        try:
+            if self.channel_progress_callback:
+                # 🔧 修复：记录异常通道，避免后续覆盖
+                if not hasattr(self, 'exception_channels'):
+                    self.exception_channels = set()
+                self.exception_channels.add(channel_num)
+
+                # 设置异常通道状态，保持当前进度不回退
+                exception_data = {
+                    'state': 'exception',
+                    'progress': 'keep_current',  # 特殊标记，保持当前进度
+                    'message': f'通道异常: {error_message}',
+                    'error_message': error_message,
+                    'timestamp': time.time()
+                }
+
+                self.channel_progress_callback(channel_num, exception_data)
+                logger.warning(f"通道{channel_num}设置为异常状态: {error_message}")
+
+                # 继续更新正常通道的进度
+                normal_channels = [ch for ch in enabled_channels if ch + 1 != channel_num]
+                if normal_channels:
+                    logger.debug(f"继续更新正常通道进度: {[ch + 1 for ch in normal_channels]}")
+
+        except Exception as e:
+            logger.error(f"处理通道{channel_num}异常失败: {e}")
+
+    def notify_test_completion(self, enabled_channels: List[int]):
+        """
+        通知测试完成，确保所有正常通道都设置为100%
+
+        Args:
+            enabled_channels: 启用的通道列表
+        """
+        try:
+            if self.channel_progress_callback:
+                # 🔧 修复：检查异常通道列表
+                exception_channels = getattr(self, 'exception_channels', set())
+
+                for channel_index in enabled_channels:
+                    channel_num = channel_index + 1
+
+                    # 🔧 修复：跳过异常通道，避免覆盖异常状态
+                    if channel_num in exception_channels:
+                        logger.debug(f"跳过异常通道{channel_num}的完成通知")
+                        continue
+
+                    completion_data = {
+                        'state': 'completed',
+                        'progress': 100,
+                        'message': '同时测试完成',
+                        'mode': 'simultaneous_final',
+                        'timestamp': time.time()
+                    }
+
+                    self.channel_progress_callback(channel_num, completion_data)
+                    logger.debug(f"通道{channel_num}测试完成，进度设置为100%")
+
+        except Exception as e:
+            logger.error(f"通知测试完成失败: {e}")
+
+    def get_test_results(self) -> Dict[float, Dict[int, Any]]:
+        """获取测试结果"""
+        return self.test_results.copy()
+    
+    def clear_results(self):
+        """清空测试结果"""
+        self.test_results.clear()
+    
+    def get_state(self) -> SimultaneousTestState:
+        """获取当前状态"""
+        return self.state
+    
+    def reset(self):
+        """重置执行器状态"""
+        self.state = SimultaneousTestState.IDLE
+        self.test_results.clear()
+
+        # 🔧 新增：重置进度记录
+        if hasattr(self, 'last_progress'):
+            self.last_progress.clear()
+        if hasattr(self, 'exception_channels'):
+            self.exception_channels.clear()
+
+        logger.debug("同时测试执行器已重置")

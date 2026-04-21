@@ -1,0 +1,216 @@
+2026-04-21 14:29:45,214 [INFO] utils.exception_handler: ✅ 全局异常处理器安装完成
+2026-04-21 14:29:45,494 [INFO] utils.qpainter_fix: ✅ 全局QPainter修复已应用
+2026-04-21 14:29:45,495 [INFO] utils.config_manager: 配置文件加载成功: config\app_config.json
+2026-04-21 14:29:45,501 [INFO] data.database_manager: 数据库迁移完成
+2026-04-21 16:30:23,715 [INFO] utils.exception_handler: ✅ 全局异常处理器安装完成
+2026-04-21 16:30:24,141 [INFO] utils.qpainter_fix: ✅ 全局QPainter修复已应用
+2026-04-21 16:30:24,142 [INFO] utils.config_manager: 配置文件加载成功: config\app_config.json
+2026-04-21 16:30:24,154 [INFO] data.database_manager: 数据库迁移完成
+2026-04-21 20:44:15,766 [INFO] utils.exception_handler: ✅ 全局异常处理器安装完成
+2026-04-21 20:44:16,201 [INFO] utils.qpainter_fix: ✅ 全局QPainter修复已应用
+2026-04-21 20:44:16,203 [INFO] utils.config_manager: 配置文件加载成功: config\app_config.json
+2026-04-21 20:44:16,208 [INFO] data.database_manager: 数据库迁移完成
+2026-04-21 20:44:52,263 [INFO] utils.exception_handler: ✅ 全局异常处理器安装完成
+2026-04-21 20:44:52,504 [INFO] utils.qpainter_fix: ✅ 全局QPainter修复已应用
+2026-04-21 20:44:52,505 [INFO] utils.config_manager: 配置文件加载成功: config\app_config.json
+2026-04-21 20:44:52,510 [INFO] data.database_manager: 数据库迁移完成
+2026-04-21 20:45:14,394 [INFO] ui.dialogs.parameter_config_widget: 参数配置设置应用成功
+2026-04-21 20:45:14,396 [INFO] ui.main_window_managers.event_coordinator: 统计组件的档位范围显示已更新
+2026-04-21 20:45:14,397 [INFO] ui.dialogs.grade_settings_widget: ✅ 根级别配置同步完成，确保所有配置节点一致
+2026-04-21 20:45:14,398 [INFO] ui.dialogs.grade_settings_widget: 所有配置保存完成
+2026-04-21 20:45:14,398 [INFO] ui.dialogs.grade_settings_widget: 档位设置应用成功
+2026-04-21 20:45:14,398 [INFO] ui.dialogs.frequency_settings_widget: 频率设置应用成功
+2026-04-21 20:45:14,399 [INFO] ui.dialogs.product_info_widget: 产品信息设置应用成功
+2026-04-21 20:45:14,399 [INFO] ui.dialogs.test_config_widget: 🎯 配置对话框：禁用取样测试模式
+2026-04-21 20:45:14,401 [INFO] backend.sampling_test_integration_manager: ✅ 创建独立的取样测试管理器
+2026-04-21 20:45:14,401 [INFO] backend.sampling_test_integration_manager: ⏹️ 停止取样测试并重置所有计数
+2026-04-21 20:45:14,402 [INFO] backend.sampling_test_manager: ⏹️ SamplingTestManager: 停止取样测试，当前状态: is_sampling_mode=False
+2026-04-21 20:45:14,402 [INFO] backend.sampling_test_manager: 🔄 重置所有计数 - 当前状态: current=0, valid=0
+2026-04-21 20:45:14,402 [INFO] backend.sampling_test_manager: ✅ 所有计数已重置为0，取样数据已清空
+2026-04-21 20:45:14,402 [INFO] backend.sampling_test_manager: ✅ SamplingTestManager: 取样测试已停止并完全重置，计数已清零
+2026-04-21 20:45:14,402 [INFO] backend.sampling_test_integration_manager: ✅ 取样测试已停止，所有计数已重置为0
+2026-04-21 20:45:14,403 [INFO] backend.sampling_test_integration_manager: ✅ 已通知UI重置取样测试显示
+2026-04-21 20:45:14,403 [INFO] ui.dialogs.test_config_widget: ✅ 从配置对话框成功停止取样测试
+2026-04-21 20:45:14,403 [INFO] ui.dialogs.test_config_widget: ✅ 增强测试模式已选择，并行错频模式已启用
+2026-04-21 20:45:14,403 [INFO] ui.dialogs.test_config_widget: 测试配置设置应用成功
+2026-04-21 20:45:14,403 [INFO] ui.dialogs.channel_enable_widget: 通道使能设置应用成功: [1, 2, 3, 4, 5, 6, 7, 8]
+2026-04-21 20:45:14,403 [INFO] ui.dialogs.device_settings_widget: 阻抗设备设置应用成功
+2026-04-21 20:45:14,404 [INFO] ui.dialogs.device_settings_widget: 扫码枪设置应用成功
+2026-04-21 20:45:14,404 [INFO] ui.dialogs.device_settings_widget: 打印机设置应用成功
+2026-04-21 20:45:14,404 [INFO] ui.dialogs.device_settings_widget: 日志设置应用成功
+2026-04-21 20:45:14,404 [INFO] ui.dialogs.device_settings_widget: 设备设置应用成功
+2026-04-21 20:45:14,406 [INFO] ui.menu_manager: 设置已保存，刷新主界面
+2026-04-21 20:45:14,407 [INFO] ui.main_window_managers.event_coordinator: ✅ 通信管理器配置已更新
+2026-04-21 20:45:14,407 [INFO] ui.main_window_managers.event_coordinator: 🔌 断开当前设备连接...
+2026-04-21 20:45:14,408 [INFO] ui.device_connection_manager: 断开设备连接...
+2026-04-21 20:45:14,408 [INFO] backend.communication_manager: 🚀 开始断开通信连接
+2026-04-21 20:45:14,611 [INFO] ui.device_connection_manager: 📡 设备连接已断开
+2026-04-21 20:45:14,614 [INFO] ui.main_window_managers.event_coordinator: 设备连接状态已更新: 未连接 
+2026-04-21 20:45:14,615 [INFO] backend.communication_manager: ✅ 断开通信连接成功 (耗时=0.207s)
+2026-04-21 20:45:14,617 [INFO] ui.device_connection_manager: ✅ 设备连接已断开
+2026-04-21 20:45:15,118 [INFO] ui.main_window_managers.event_coordinator: 🔌 使用新配置重新连接设备...
+2026-04-21 20:45:15,120 [INFO] ui.device_connection_manager: 开始连接设备...
+2026-04-21 20:45:15,121 [INFO] backend.communication_manager: 🚀 开始建立通信连接 (端口=COM5, 模式=快速连接)
+2026-04-21 20:45:15,183 [INFO] ui.device_connection_manager: 📡 设备连接已建立
+2026-04-21 20:45:15,184 [INFO] ui.device_connection_manager: 设备信息已更新: JCY5001AS
+2026-04-21 20:45:15,185 [INFO] backend.communication_manager: ✅ 建立通信连接成功 (端口=COM5, 模式=快速连接)
+2026-04-21 20:45:15,186 [INFO] ui.device_connection_manager: ✅ 设备连接成功
+2026-04-21 20:45:15,186 [INFO] ui.main_window_managers.event_coordinator: ✅ 设备重新连接成功
+2026-04-21 20:45:15,186 [INFO] ui.main_window_managers.event_coordinator: ✅ 设备配置更新和重新连接完成
+2026-04-21 20:45:15,394 [INFO] backend.communication_manager: ✅ 断开通信连接成功 (耗时=0.206s)
+2026-04-21 20:45:15,966 [INFO] ui.main_window_managers.settings_loader: 通道使能状态已加载: [1, 2, 3, 4, 5, 6, 7, 8]
+2026-04-21 20:45:15,970 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\presets\compact_30x20.json
+2026-04-21 20:45:15,971 [INFO] ui.label_print_manager: ✅ 设计器模板加载成功: 紧凑模板 (240x160px, 6个元素)
+2026-04-21 20:45:15,971 [INFO] ui.label_print_manager: ✅ 已加载标签设计器模板: 紧凑模板 (ID: compact_30x20)
+2026-04-21 20:45:15,972 [INFO] ui.label_print_manager: 📐 模板尺寸: 240x160像素，元素数量: 6
+2026-04-21 20:45:15,973 [INFO] ui.label_print_manager: 标签模板配置已重新加载
+2026-04-21 20:45:15,973 [INFO] ui.dialogs.settings_dialog: ✅ 已发送标签模板配置变更信号: compact_30x20
+2026-04-21 20:45:15,974 [INFO] ui.dialogs.settings_dialog: 🚀 设置保存成功（性能优化版本）
+2026-04-21 20:45:15,976 [INFO] ui.dialogs.settings_dialog: 设备设置已变更，重新连接设备...
+2026-04-21 20:45:16,181 [INFO] backend.communication_manager: ✅ 断开通信连接成功 (耗时=0.203s)
+2026-04-21 20:45:16,182 [INFO] ui.dialogs.settings_dialog: 设备状态已同步到主界面
+2026-04-21 20:45:16,186 [INFO] ui.main_window_managers.settings_loader: 开始加载启动设置...
+2026-04-21 20:45:16,187 [INFO] ui.main_window_managers.settings_loader: 产品信息设置已加载
+2026-04-21 20:45:16,188 [INFO] ui.main_window_managers.settings_loader: ✅ 测试控制组件已刷新
+2026-04-21 20:45:16,188 [INFO] ui.main_window_managers.settings_loader: 启动设置加载完成
+2026-04-21 20:45:16,188 [INFO] ui.main_window_managers.event_coordinator: ✅ 所有启动设置已重新加载
+2026-04-21 20:45:16,190 [INFO] ui.menu_manager: ✅ 设置对话框已确认，配置变更信号已发送
+2026-04-21 20:45:16,197 [INFO] ui.printer_manager: 🔄 同步刷新打印机状态
+2026-04-21 20:45:16,199 [INFO] ui.main_window_managers.event_coordinator: 打印机状态变更: 已连接
+2026-04-21 20:45:16,204 [INFO] ui.main_window_managers.event_coordinator: 设备连接状态已更新: 已连接 COM5
+2026-04-21 20:45:16,683 [INFO] ui.device_connection_manager: 开始执行安全自动连接... (第1/3次尝试)
+2026-04-21 20:45:16,776 [INFO] ui.device_connection_manager: ✅ 安全设备连接成功
+2026-04-21 20:45:16,776 [INFO] ui.device_connection_manager: ✅ 安全自动连接成功
+2026-04-21 20:45:21,127 [INFO] ui.main_window_managers.window_layout_manager: 窗口设置已保存
+2026-04-21 20:45:21,131 [INFO] backend.data_upload_manager: 正在停止数据上传线程...
+2026-04-21 20:45:21,132 [INFO] ui.test_flow_managers.test_flow_manager_adapter: 测试流程管理器适配器资源已清理
+2026-04-21 20:45:21,342 [INFO] backend.communication_manager: ✅ 断开通信连接成功 (耗时=0.209s)
+2026-04-21 20:45:21,345 [INFO] ui.device_connection_manager: 设备连接管理器资源已清理
+2026-04-21 20:45:21,345 [INFO] ui.ui_component_manager: UI组件管理器资源已清理
+2026-04-21 20:45:21,428 [INFO] backend.data_upload_manager: 正在停止数据上传线程...
+2026-04-21 20:45:24,490 [INFO] utils.exception_handler: ✅ 全局异常处理器安装完成
+2026-04-21 20:45:24,714 [INFO] utils.qpainter_fix: ✅ 全局QPainter修复已应用
+2026-04-21 20:45:24,715 [INFO] utils.config_manager: 配置文件加载成功: config\app_config.json
+2026-04-21 20:45:24,720 [INFO] data.database_manager: 数据库迁移完成
+2026-04-21 20:45:24,720 [INFO] utils.log_config_manager: ✅ 日志级别已设置为: INFO
+2026-04-21 20:45:24,721 [INFO] utils.log_level_optimizer: ✅ 日志级别优化器初始化完成
+2026-04-21 20:45:24,721 [INFO] utils.log_level_optimizer: ✅ 日志级别优化应用完成
+2026-04-21 20:45:24,721 [INFO] utils.log_level_optimizer: 🔄 启动动态日志级别调整 (间隔: 5分钟)
+2026-04-21 20:45:24,721 [INFO] utils.log_level_optimizer: ✅ 全局日志级别优化器初始化完成
+2026-04-21 20:45:24,721 [INFO] __main__: ✅ 日志配置管理器已初始化并应用设置
+2026-04-21 20:45:24,721 [INFO] utils.startup_optimizer: 🚀 启动性能优化开始
+2026-04-21 20:45:24,721 [INFO] utils.startup_optimizer: 🔄 开始阶段: 配置加载
+2026-04-21 20:45:24,721 [INFO] utils.startup_optimizer: ✅ 阶段完成: 配置加载 (0.000s)
+2026-04-21 20:45:24,721 [INFO] utils.startup_optimizer: 🔄 开始阶段: 日志系统初始化
+2026-04-21 20:45:24,724 [INFO] utils.startup_optimizer: ✅ 阶段完成: 日志系统初始化 (0.003s)
+2026-04-21 20:45:24,725 [INFO] utils.startup_optimizer: 🔄 开始阶段: 数据库初始化
+2026-04-21 20:45:24,728 [INFO] utils.startup_optimizer: ✅ 阶段完成: 数据库初始化 (0.004s)
+2026-04-21 20:45:24,728 [INFO] utils.startup_optimizer: 🔄 开始阶段: 授权检查
+2026-04-21 20:45:24,765 [INFO] utils.license_manager: ✅ 硬件指纹生成完成: 649aa498c2d5820b...
+2026-04-21 20:45:24,787 [INFO] utils.license_manager: ✅ 授权数据加载成功，硬件指纹匹配
+2026-04-21 20:45:24,787 [INFO] utils.license_manager: ✅ 授权数据已存在，跳过初始化
+2026-04-21 20:45:24,787 [INFO] utils.startup_optimizer: ✅ 阶段完成: 授权检查 (0.059s)
+2026-04-21 20:45:24,787 [INFO] utils.startup_optimizer: 🔄 开始阶段: 主界面创建
+2026-04-21 20:45:24,788 [INFO] ui.main_window: 🚀 开始初始化统一服务架构...
+2026-04-21 20:45:24,906 [INFO] utils.resource_path_manager: 检测到开发环境，基础路径: D:\JCY5001_Clean\JCY5001AS_Clean_Source
+2026-04-21 20:45:25,541 [INFO] utils.device_id_manager: 设备ID管理器已初始化
+2026-04-21 20:45:25,541 [INFO] utils.device_id_manager: 使用缓存的设备ID: 649aa498c2d5820b...
+2026-04-21 20:45:25,557 [INFO] ui.main_window: ✅ 数据上传管理器已集成到测试流程
+2026-04-21 20:45:25,557 [INFO] ui.main_window: ℹ️ 数据上传功能已禁用
+2026-04-21 20:45:25,561 [INFO] backend.voltage_based_battery_detection_manager: 🔧 [回调设置] 设置电池检测回调函数:
+2026-04-21 20:45:25,562 [INFO] backend.voltage_based_battery_detection_manager:   - battery_removed_callback: <bound method MainWindow._on_battery_removed of <ui.main_window.MainWindow object at 0x0000021373BD1520>>
+2026-04-21 20:45:25,564 [INFO] backend.voltage_based_battery_detection_manager:   - new_battery_detected_callback: <bound method MainWindow._on_new_battery_detected of <ui.main_window.MainWindow object at 0x0000021373BD1520>>
+2026-04-21 20:45:25,565 [INFO] backend.voltage_based_battery_detection_manager:   - status_update_callback: <bound method MainWindow._on_battery_status_updated of <ui.main_window.MainWindow object at 0x0000021373BD1520>>
+2026-04-21 20:45:25,566 [INFO] ui.main_window: 🔋 自动侦测模式未启用，回调函数已设置但检测未启动
+2026-04-21 20:45:25,604 [INFO] utils.icon_manager: Logo图片加载成功: D:\JCY5001_Clean\JCY5001AS_Clean_Source\resources\icons\app_icon.png, 尺寸: 32x32
+2026-04-21 20:45:25,620 [INFO] utils.statistics_counter_manager: 成功加载统计计数器数据: data\statistics_counter.json
+2026-04-21 20:45:25,623 [INFO] ui.components.statistics_widget: ✅ 统计计数器数据加载完成: 总数=120, 合格=8, 不合格=112
+2026-04-21 20:45:25,774 [INFO] ui.components.test_control_widget: ✅ 手动模式：按钮状态已同步为'开始测试'
+2026-04-21 20:45:25,774 [INFO] ui.components.test_control_widget: 连续测试模式已关闭，隐藏状态指示器
+2026-04-21 20:45:25,775 [INFO] ui.main_window: ✅ 窗口状态监控定时器已启动
+2026-04-21 20:45:25,775 [INFO] utils.startup_optimizer: ✅ 阶段完成: 主界面创建 (0.988s)
+2026-04-21 20:45:25,775 [INFO] utils.startup_optimizer: 🔄 开始阶段: 窗口显示
+2026-04-21 20:45:25,928 [INFO] ui.components.status_bar_widget: 打印机连接成功
+2026-04-21 20:45:26,028 [INFO] utils.startup_optimizer: ✅ 阶段完成: 窗口显示 (0.253s)
+2026-04-21 20:45:26,028 [INFO] utils.startup_optimizer: 🎯 启动优化完成，总耗时: 1.306s
+2026-04-21 20:45:26,029 [INFO] utils.startup_optimizer: 🔄 已安排0个延迟任务
+2026-04-21 20:45:26,495 [INFO] ui.battery_code_manager: ✅ 通道容器组件已设置: SplitChannelsContainerWidget
+2026-04-21 20:45:26,496 [INFO] ui.battery_code_manager: ✅ 通道容器支持电池码设置功能
+2026-04-21 20:45:26,497 [INFO] ui.test_flow_managers.test_flow_manager_adapter: ✅ 通道容器组件已设置到电池码管理器
+2026-04-21 20:45:26,776 [INFO] ui.main_window_managers.authorization_manager: 开始检查软件授权状态...
+2026-04-21 20:45:26,777 [INFO] ui.main_window_managers.authorization_manager: 软件已正式授权
+2026-04-21 20:45:27,550 [INFO] ui.main_window: 🚀 开始延迟启动网络服务...
+2026-04-21 20:45:27,551 [INFO] backend.data_upload_manager: ✅ 数据上传服务延迟启动完成
+2026-04-21 20:45:27,553 [INFO] ui.main_window: ✅ 网络服务延迟启动完成
+2026-04-21 20:45:27,776 [INFO] ui.device_connection_manager: 开始安全自动连接流程...
+2026-04-21 20:45:27,777 [INFO] ui.device_connection_manager: 开始执行安全自动连接... (第1/3次尝试)
+2026-04-21 20:45:27,777 [INFO] backend.communication_manager: 🚀 开始建立通信连接 (端口=COM5, 模式=快速连接)
+2026-04-21 20:45:27,777 [INFO] backend.serial_connection_manager: 尝试连接串口: COM5
+2026-04-21 20:45:27,843 [INFO] ui.device_connection_manager: 📡 设备连接已建立
+2026-04-21 20:45:27,845 [INFO] ui.components.status_bar_widget: 设备连接成功: COM5
+2026-04-21 20:45:27,846 [INFO] ui.device_connection_manager: 设备信息已更新: JCY5001AS
+2026-04-21 20:45:27,847 [INFO] ui.main_window: 自动侦测模式未启用，跳过电池检测启动
+2026-04-21 20:45:27,848 [WARNING] ui.main_window: ⚠️ 心跳管理器未找到
+2026-04-21 20:45:27,848 [INFO] backend.serial_connection_manager: 串口连接成功: COM5
+2026-04-21 20:45:27,849 [INFO] backend.communication_manager: ✅ 建立通信连接成功 (端口=COM5, 模式=快速连接)
+2026-04-21 20:45:27,851 [INFO] ui.device_connection_manager: ✅ 安全设备连接成功
+2026-04-21 20:45:27,852 [INFO] ui.device_connection_manager: ✅ 安全自动连接成功
+2026-04-21 20:45:27,948 [INFO] ui.main_window_managers.event_coordinator: 设备连接状态已更新: 已连接 COM5
+2026-04-21 20:45:29,858 [INFO] ui.menu_manager: 打开参数设置对话框
+2026-04-21 20:45:29,859 [INFO] ui.dialogs.settings_dialog: 🚀 设置对话框：立即阻塞网络服务
+2026-04-21 20:45:29,860 [INFO] backend.data_upload_manager: 数据上传线程已暂停
+2026-04-21 20:45:29,861 [INFO] utils.settings_performance_booster: 🚀 设置页面性能模式已启用
+2026-04-21 20:45:29,863 [INFO] utils.settings_network_optimizer: 🚀 应用设置页面优化，跳过服务器检查
+2026-04-21 20:45:29,864 [INFO] utils.settings_network_optimizer: 🚀 启用设置页面离线优化模式
+2026-04-21 20:45:29,866 [INFO] utils.settings_performance_monitor: 🚀 设置页面性能监控已启动
+2026-04-21 20:45:29,867 [WARNING] utils.resource_path_manager: 资源文件不存在: resources/icons/settings.png
+2026-04-21 20:45:29,868 [WARNING] ui.dialogs.settings_dialog: 设置图标文件不存在: D:\JCY5001_Clean\JCY5001AS_Clean_Source\resources/icons/settings.png
+2026-04-21 20:45:29,869 [INFO] ui.dialogs.settings_dialog: 🚀 开始创建设置选项卡（预加载模式）...
+2026-04-21 20:45:29,993 [INFO] ui.dialogs.device_settings_widget: ✅ 直接恢复打印机选择: Microsoft Print to PDF -> Microsoft Print to PDF
+2026-04-21 20:45:29,994 [INFO] ui.dialogs.device_settings_widget: 🎯 最终打印机选择: 'Microsoft Print to PDF'
+2026-04-21 20:45:32,107 [ERROR] backend.data_read_manager: 读取通道数失败：无响应
+2026-04-21 20:45:34,217 [ERROR] backend.data_read_manager: 群发读取电池电压失败：无响应
+2026-04-21 20:45:36,324 [WARNING] ui.dialogs.about_widget: 设备连接但通道数读取为0，使用默认8通道
+2026-04-21 20:45:36,370 [INFO] ui.dialogs.settings_dialog: ✅ 设置选项卡创建完成，共8个页面（预加载模式）
+2026-04-21 20:45:36,371 [INFO] ui.dialogs.voltage_range_manager: ✅ 电压范围管理器使用用户设置的电压参数: 3.154V - 3.254V
+2026-04-21 20:45:36,372 [INFO] ui.dialogs.grade_settings_widget: ✅ 使用取样测试应用的电压参数: 3.154V - 3.254V
+2026-04-21 20:45:36,372 [INFO] ui.dialogs.grade_settings_widget: 所有配置加载完成
+2026-04-21 20:45:36,376 [INFO] ui.dialogs.test_config_widget: 🔄 开始加载打印设置模板列表...
+2026-04-21 20:45:36,378 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\presets\compact_30x20.json
+2026-04-21 20:45:36,379 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\presets\detailed_50x30.json
+2026-04-21 20:45:36,380 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\presets\simple_40x30.json
+2026-04-21 20:45:36,381 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\presets\standard_50x30.json
+2026-04-21 20:45:36,382 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\user\我的简化模板_20250811_154727.json
+2026-04-21 20:45:36,383 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\user\我的简化模板_20250811_154732.json
+2026-04-21 20:45:36,384 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\user\测试_导入_20250811_155106.json
+2026-04-21 20:45:36,384 [INFO] ui.dialogs.label_template_manager: 模板加载成功: templates\label_templates\user\测试_导入_副本_20250813_145017.json
+2026-04-21 20:45:36,385 [INFO] ui.dialogs.test_config_widget: 🎯 尝试选择配置中的模板: compact_30x20
+2026-04-21 20:45:36,385 [INFO] ui.dialogs.test_config_widget: ✅ 成功选择模板: compact_30x20 (索引: 0)
+2026-04-21 20:45:36,385 [INFO] ui.dialogs.test_config_widget: ✅ 打印设置模板列表加载完成，共 8 个模板
+2026-04-21 20:45:36,387 [INFO] ui.dialogs.settings_dialog: ✅ 所有页面设置加载完成（预加载模式）
+2026-04-21 20:45:36,414 [INFO] utils.settings_network_blocker: 🚀 开始阻塞网络服务，优化设置页面性能
+2026-04-21 20:45:36,414 [INFO] utils.settings_network_blocker: ✅ 网络服务阻塞完成
+2026-04-21 20:45:36,418 [INFO] ui.dialogs.grade_settings_widget: 初始数据加载完成
+2026-04-21 20:45:36,424 [INFO] ui.dialogs.device_settings_widget: 串口列表刷新完成，发现 2 个串口
+2026-04-21 20:45:38,723 [INFO] ui.components.test_control_widget: 用户请求打开设置
+2026-04-21 20:45:39,763 [INFO] ui.main_window_managers.window_layout_manager: 窗口设置已保存
+2026-04-21 20:45:39,767 [INFO] utils.config_manager: 配置文件保存成功: config\app_config.json
+2026-04-21 20:45:39,768 [INFO] ui.main_window: 开始清理网络相关资源...
+2026-04-21 20:45:39,768 [INFO] backend.data_upload_manager: 正在停止数据上传线程...
+2026-04-21 20:45:39,769 [INFO] ui.main_window: 网络相关资源清理完成，开始清理其他资源...
+2026-04-21 20:45:39,770 [INFO] ui.test_flow_managers.test_flow_manager_adapter: 测试流程管理器适配器资源已清理
+2026-04-21 20:45:39,770 [INFO] ui.device_connection_manager: 断开设备连接...
+2026-04-21 20:45:39,770 [INFO] backend.communication_manager: 🚀 开始断开通信连接
+2026-04-21 20:45:39,977 [INFO] ui.device_connection_manager: 📡 设备连接已断开
+2026-04-21 20:45:39,980 [INFO] ui.components.status_bar_widget: 设备连接断开
+2026-04-21 20:45:39,981 [INFO] ui.main_window_managers.event_coordinator: 设备连接状态已更新: 未连接 
+2026-04-21 20:45:39,982 [INFO] backend.voltage_based_battery_detection_manager: 电池侦测未在运行
+2026-04-21 20:45:39,982 [INFO] ui.main_window: ✅ 设备断开连接，电池检测已停止
+2026-04-21 20:45:39,983 [INFO] backend.serial_connection_manager: 串口连接已断开
+2026-04-21 20:45:39,983 [INFO] backend.communication_manager: ✅ 断开通信连接成功 (耗时=0.213s)
+2026-04-21 20:45:39,987 [INFO] ui.device_connection_manager: ✅ 设备连接已断开
+2026-04-21 20:45:39,987 [INFO] ui.device_connection_manager: 设备连接管理器资源已清理
+2026-04-21 20:45:39,988 [INFO] ui.ui_component_manager: UI组件管理器资源已清理
+2026-04-21 20:45:39,989 [INFO] ui.main_window: 应用程序正在关闭
+2026-04-21 20:45:40,012 [INFO] utils.exception_handler: ✅ 异常处理器已卸载
+2026-04-21 20:45:40,085 [INFO] backend.data_upload_manager: 正在停止数据上传线程...
