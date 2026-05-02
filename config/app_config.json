@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "JCY5001AS鲸测云8路EIS阻抗筛选仪",
-    "version": "V0.92.42",
+    "version": "V0.92.45",
     "trial_days": 30,
     "start_date": "2025-05-26T07:28:23.393457",
     "show_startup_license_dialog": false
@@ -51,8 +51,7 @@
       "tolerance_percent": 10.0
     },
     "delay": 100,
-    "voltage_tolerance": 0.5,
-    "critical_frequency": 10.0
+    "voltage_tolerance": 0.5
   },
   "frequency": {
     "mode": "multi",
@@ -151,12 +150,12 @@
   },
   "device": {
     "connection": {
-      "port": "COM5",
+      "port": "COM9",
       "baudrate": 115200,
       "timeout": 1.0,
       "type": "modbus_rtu",
       "device_address": 1,
-      "last_port": "COM7",
+      "last_port": "COM9",
       "retry_count": 1,
       "retry_delay": 0.01,
       "health_check_interval": 30.0,
@@ -300,7 +299,7 @@
     "description": "调试功能配置 - 生产环境请保持为false"
   },
   "test_config": {
-    "auto_detect": true,
+    "auto_detect": false,
     "data_optimization": true,
     "optimization_delay": 0.5,
     "battery_coding": {
@@ -317,7 +316,7 @@
   "product": {
     "batch_number": "BATCH-20250709-001",
     "operator": "1111111",
-    "production_date": "周二 4月 21 2026",
+    "production_date": "周六 5月 2 2026",
     "remarks": "",
     "battery_type": "磷酸铁锂",
     "battery_spec": "555555555",
@@ -368,12 +367,12 @@
     "high_frequency_delay": 15,
     "medium_frequency_delay": 20,
     "low_frequency_delay": 35,
-    "ultra_low_frequency_delay": 0,
+    "ultra_low_frequency_delay": 50,
     "description": "错频启动延时配置(ms): 高频≥1007Hz, 中频101-1006Hz, 低频11-100Hz, 超低频<11Hz"
   },
   "staggered_startup": {
     "mode": "parallel_staggered",
-    "description": "错频启动模式: sequential(错频启动), simultaneous(同时启动)"
+    "description": "staggered_startup: parallel(0FH)/sequential/auto"
   },
   "test_count": {
     "channel_1": 206,
