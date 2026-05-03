@@ -1,7 +1,7 @@
-{
+﻿{
   "app": {
     "name": "JCY5001AS鲸测云8路EIS阻抗筛选仪",
-    "version": "V0.92.45",
+    "version": "V0.92.53",
     "trial_days": 30,
     "start_date": "2025-05-26T07:28:23.393457",
     "show_startup_license_dialog": false
@@ -28,8 +28,8 @@
     }
   },
   "batch_info": {
-    "batch_number": "BATCH-20250709-001",
-    "operator": "1111111",
+    "batch_number": "BATCH-20260502-001",
+    "operator": "AI-TEST",
     "cell_type": "磷酸铁锂",
     "cell_spec": "555555555",
     "standard_voltage": 3.2,
@@ -51,7 +51,8 @@
       "tolerance_percent": 10.0
     },
     "delay": 100,
-    "voltage_tolerance": 0.5
+    "voltage_tolerance": 0.5,
+    "critical_frequency": 10.0
   },
   "frequency": {
     "mode": "multi",
@@ -132,7 +133,7 @@
     "timeout_seconds": 150,
     "max_retries": 5,
     "error_recovery": true,
-    "sampling_count": 1,
+    "sampling_count": 10,
     "sampling_test": false,
     "fast_startup": true,
     "capacity_prediction_enabled": false
@@ -186,8 +187,8 @@
     "timeout": 10,
     "auto_reconnect": true,
     "reconnect_interval": 30,
-    "auto_connect": true,
-    "com_port": "COM5"
+    "auto_connect": false,
+    "com_port": "COM9"
   },
   "grade_settings": {
     "rs_grades": 3,
@@ -314,9 +315,9 @@
     }
   },
   "product": {
-    "batch_number": "BATCH-20250709-001",
-    "operator": "1111111",
-    "production_date": "周六 5月 2 2026",
+    "batch_number": "BATCH-20260502-001",
+    "operator": "AI-TEST",
+    "production_date": "周日 5月 3 2026",
     "remarks": "",
     "battery_type": "磷酸铁锂",
     "battery_spec": "555555555",
@@ -375,12 +376,12 @@
     "description": "staggered_startup: parallel(0FH)/sequential/auto"
   },
   "test_count": {
-    "channel_1": 206,
-    "channel_2": 207,
-    "channel_3": 179,
-    "channel_4": 181,
-    "channel_5": 186,
-    "channel_6": 187,
+    "channel_1": 208,
+    "channel_2": 209,
+    "channel_3": 181,
+    "channel_4": 183,
+    "channel_5": 188,
+    "channel_6": 189,
     "channel_7": 189,
     "channel_8": 188
   },
@@ -451,3 +452,4 @@
     "battery_detection_barcodes_ready": false
   }
 }
+

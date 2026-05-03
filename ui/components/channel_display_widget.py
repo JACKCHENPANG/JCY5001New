@@ -89,7 +89,10 @@ class ChannelDisplayWidget(QWidget):
         self.current_frequency = 0.0
         self.frequency_index = 0
         self.total_frequencies = 0
-        self.frequency_status = "waiting"  # waiting, testing, completed
+        self.frequency_status = "waiting"
+        # 重置频点进度标签
+        if hasattr(self, 'frequency_progress_label') and self.frequency_progress_label:
+            self.frequency_progress_label.setText("频点: 0/0")  # waiting, testing, completed
 
         # 频点更新状态跟踪
         self._last_frequency_update = None
@@ -541,6 +544,12 @@ class ChannelDisplayWidget(QWidget):
         self.voltage_label = QLabel("0.000")
         self.voltage_label.setObjectName("dataLabel")
         voltage_layout.addWidget(self.voltage_label)
+
+        # 频点进度标签
+        self.frequency_progress_label = QLabel("频点: 0/0")
+        self.frequency_progress_label.setObjectName("frequencyProgressLabel")
+        voltage_layout.addWidget(self.frequency_progress_label)
+
         voltage_layout.addStretch()
 
         layout.addLayout(voltage_layout)
@@ -1010,6 +1019,17 @@ class ChannelDisplayWidget(QWidget):
                 max-width: 16px;
                 max-height: 20px;
             }
+
+            /* 频点进度标签样式 */
+            QLabel#frequencyProgressLabel {
+                font-size: 11pt;
+                color: #e67e22;
+                font-weight: bold;
+                padding: 2px 6px;
+                border: 1px solid #f0c27a;
+                border-radius: 3px;
+                background-color: #fef5e7;
+            }
         """)
 
     def _init_timer(self):
@@ -1389,6 +1409,10 @@ class ChannelDisplayWidget(QWidget):
         try:
             logger.info(f"🔋 通道{self.channel_number}更新电池状态: {status} ({voltage:.2f}V)")
 
+            # 🆕 实时更新电压显示（无论电池状态如何，始终显示当前电压）
+            if hasattr(self, 'voltage_label') and self.voltage_label:
+                self.voltage_label.setText(f"{voltage:.3f}")
+
             # 获取电池状态指示器 - 修复：增强调试和多种获取方式
             indicator = None
 
@@ -1451,7 +1475,7 @@ class ChannelDisplayWidget(QWidget):
                     """)
                     indicator.setToolTip(f"电池状态：已移除 ({voltage:.2f}V)")
                 else:  # unknown
-                    indicator.setText("?")
+                    indicator.setText("")
                     indicator.setStyleSheet("""
                         QLabel {
                             font-size: 18pt;
@@ -1544,7 +1568,9 @@ class ChannelDisplayWidget(QWidget):
                         total_count = 2  # 使用实际的频点数量作为默认值
 
                     logger.debug(f"通道{self.channel_number}更新频点显示: {frequency}Hz ({current_index}/{total_count}) testing")
-                    # 频点显示功能已移除
+                    # 更新频点进度标签
+                    if hasattr(self, 'frequency_progress_label') and self.frequency_progress_label:
+                        self.frequency_progress_label.setText(f"频点: {current_index}/{total_count}")
 
             elif state == 'completed':
                 # 修复测试完成时停止计时器
@@ -1681,7 +1707,9 @@ class ChannelDisplayWidget(QWidget):
                     total_count = progress_data.get('total_frequency_count', 20)
 
                     logger.debug(f"通道{self.channel_number}测试完成频点显示: {frequency}Hz ({current_index}/{total_count}) completed")
-                    # 频点显示功能已移除
+                    # 更新频点进度标签（测试完成）
+                    if hasattr(self, 'frequency_progress_label') and self.frequency_progress_label:
+                        self.frequency_progress_label.setText(f"频点: {current_index}/{total_count}")
 
             elif state == 'sampling_completed':
                 # 关键修复处理取样测试完成状态

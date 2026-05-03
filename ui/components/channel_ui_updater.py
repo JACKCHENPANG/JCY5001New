@@ -112,7 +112,10 @@ class ChannelUIUpdater:
         """
         try:
             if self.voltage_label:
-                text = f"{voltage:.3f}V"
+                if voltage > 5.0 or voltage < 0.5:
+                    text = "无电池"
+                else:
+                    text = f"{voltage:.3f}V"
                 self.voltage_label.setText(text)
                 logger.debug(f"通道{self.channel_number}电压显示更新: {text}")
                 return True
