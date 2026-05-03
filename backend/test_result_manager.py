@@ -1764,11 +1764,11 @@ class TestResultManager:
 
                         QTimer.singleShot(50, update_ui)
                     else:
-                        logger.warning(f"⚠️ [直接UI显示] 通道{channel_num} 通道组件未找到或不支持直接设置结果")
+                        logger.debug(f"⚠️ [直接UI显示] 通道{channel_num} 通道组件未找到或不支持直接设置结果")
                 else:
-                    logger.warning(f"⚠️ [直接UI显示] 通道{channel_num} 通道容器组件未找到")
+                    logger.debug(f"⚠️ [直接UI显示] 通道{channel_num} 通道容器组件未找到")
             else:
-                logger.warning(f"⚠️ [直接UI显示] 通道{channel_num} UI组件管理器未找到")
+                logger.debug(f"⚠️ [直接UI显示] 通道{channel_num} UI组件管理器未找到")
 
         except Exception as e:
             logger.error(f"❌ [直接UI显示] 通道{channel_num} 直接传递测试结果失败: {e}")

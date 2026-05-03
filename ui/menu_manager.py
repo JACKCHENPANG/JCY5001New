@@ -363,7 +363,7 @@ class MenuManager:
         try:
             # 获取应用信息
             app_name = self.config_manager.get('app.name', 'JCY5001AS鲸测云8路EIS阻抗筛选仪产线版')
-            app_version = self.config_manager.get('app.version', 'V0.92.53')
+            app_version = self.config_manager.get('app.version', 'V0.92.54')
             
             about_text = f"""
             <h2>{app_name}</h2>

@@ -1013,31 +1013,33 @@ class MainWindow(QMainWindow):
     # ===== 兼容性方法 =====
 
     def _on_start_test(self):
-        """开始测试（兼容性方法）"""
-        # 修复检查是否已经使用统一测试控制器启动
+        """开始测试 - 直接启动后端"""
+        # 跳过统一测试控制器
         if hasattr(self, 'unified_test_controller') and self.unified_test_controller:
             if hasattr(self.unified_test_controller, '_current_state') and self.unified_test_controller._current_state == 'running':
-                logger.info("🔄 统一测试控制器已在运行，跳过原有流程启动")
+                logger.info('统一测试控制器已在运行，跳过')
                 return
 
-        # 开始新测试会话，清理打印缓存
         if hasattr(self, 'label_print_manager') and self.label_print_manager:
             self.label_print_manager.start_new_test_session()
 
-        # 清理测试完成标志，允许新测试的打印触发
         if hasattr(self, '_test_completion_flags'):
             self._test_completion_flags.clear()
 
-        logger.info("🔄 使用原有测试流程（兼容性方法）")
+        logger.info('使用后端测试流程控制器启动测试')
 
-        # Jack修复启动进度监控
-        sampling_test = self.config_manager.get('test.sampling_test', False)
-        if sampling_test:
-            logger.info("🎯 采样测试模式：启动进度监控")
-            self._start_progress_monitoring()
+        # 直接调用 test_flow_manager._start_test_engine
+        # 获取电池码和批次信息
+        enabled_channels = self.config_manager.get('test.enabled_channels', list(range(1, 9)))
+        import time
+        batch_num = 'BATCH-' + time.strftime('%Y%m%d') + '-001'
+        codes = ['JCY-' + time.strftime('%Y%m%d') + '-' + str(i).zfill(4) for i in enabled_channels]
+        batch_info = {'batch_number': batch_num, 'battery_codes': codes, 'enabled_channels': enabled_channels}
 
-        self.test_flow_manager.start_test()
-
+        if hasattr(self, 'test_flow_manager') and self.test_flow_manager:
+            self.test_flow_manager._start_actual_test(codes)
+        else:
+            logger.warning('test_flow_manager not available')
     def _on_stop_test(self):
         """停止测试（增强版）"""
         # 修复：使用线程锁防止重复执行

@@ -97,12 +97,12 @@ class VoltageBasedBatteryDetectionManager:
                 logger.info("电池侦测已在运行中")
                 return
             
-            # 检查是否启用自动侦测
-            auto_detect = self.config_manager.get('test.auto_detect', False)  # 修复：默认值改为False，与屏蔽状态一致
+            # 始终启动电压监控（不依赖 auto_detect 设置）
+            # auto_detect 仅控制是否自动开始测试，不影响电压显示
             battery_detection_enabled = self.config_manager.get('battery_detection.enabled', True)
-            
-            if not auto_detect or not battery_detection_enabled:
-                logger.info("自动侦测功能已禁用，跳过启动")
+
+            if not battery_detection_enabled:
+                logger.info("电池检测功能已禁用，跳过启动")
                 return
             
             if enabled_channels is None:
@@ -262,20 +262,17 @@ class VoltageBasedBatteryDetectionManager:
                 # 更新最后电压值
                 channel_state.last_voltage = voltage
 
-                # 修复只在状态变化或电压跳变时通知状态更新，避免频繁调用
-                if (new_state != old_state or voltage_jump_detected):
-                    logger.info(f"🔋 通知状态更新: 通道{channel_num} -> {new_state.value} ({voltage:.3f}V)")
-                    if self.status_update_callback:
-                        try:
-                            logger.info(f"🔋 [回调调用] 调用status_update_callback: 通道{channel_num}, 状态={new_state.value}, 电压={voltage:.3f}V")
-                            self.status_update_callback(channel_num, new_state.value, voltage)
-                            logger.info(f"✅ [回调调用] status_update_callback调用成功")
-                        except Exception as e:
-                            logger.error(f"状态更新回调失败: {e}")
-                            import traceback
-                            logger.error(f"状态更新回调详细错误: {traceback.format_exc()}")
-                    else:
-                        logger.warning(f"⚠️ [回调调用] status_update_callback为None，无法调用")
+                # 🔄 始终通知电压更新（用于实时显示，无论状态是否变化）
+                logger.debug(f"🔋 电压更新: 通道{channel_num} -> {new_state.value} ({voltage:.3f}V)")
+                if self.status_update_callback:
+                    try:
+                        self.status_update_callback(channel_num, new_state.value, voltage)
+                    except Exception as e:
+                        logger.error(f"状态更新回调失败: {e}")
+                        import traceback
+                        logger.error(f"状态更新回调详细错误: {traceback.format_exc()}")
+                else:
+                    logger.warning(f"⚠️ [回调调用] status_update_callback为None，无法调用")
 
         except Exception as e:
             logger.error(f"分析电压变化失败: {e}")

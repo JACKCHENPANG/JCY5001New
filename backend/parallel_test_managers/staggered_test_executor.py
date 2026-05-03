@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 错频测试执行器
 从ParallelStaggeredTestManager中提取的错频测试执行相关功能
@@ -328,7 +328,7 @@ class StaggeredTestExecutor:
             是否所有通道都完成测试
         """
         try:
-            timeout = 2.0  # 每次最多等待2秒（因为1秒内就可以完成）
+            timeout = 3.0  # 每次最多等待2秒（因为1秒内就可以完成）
             start_time = time.time()
             completed_channels = set()
 

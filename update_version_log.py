@@ -1,0 +1,45 @@
+import os
+
+# 更新 spec 文件 BUILD_NUMBER
+spec_file = 'JCY5001AS_release.spec'
+if os.path.exists(spec_file):
+    with open(spec_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+    content = content.replace('BUILD_NUMBER = "52"', 'BUILD_NUMBER = "53"')
+    with open(spec_file, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f"Updated: {spec_file} -> BUILD_NUMBER = 53")
+
+# 更新 VERSION_LOG.md
+version_log = """# JCY5001 版本日志
+
+## 项目信息
+- **项目名称**: JCY5001 EIS 阻抗谱测试系统
+- **功能描述**: 8通道EIS阻抗筛选仪 (7.8kHz~0.01Hz, 多频/研究模式)
+- **项目路径**: D:\\JCY5001_clean\\
+- **技术栈**: Python 3.14 + PyQt5
+
+## 命名规范
+- **语义版本**: V0.92.XX（功能版本，代码 app_config.json 配置）
+- **构建号**: ASXX（每次发布+1，spec 文件 BUILD_NUMBER 控制）
+- **dist 目录**: JCY5001AS{BUILD_NUMBER}（exe 和目录名保持一致）
+
+## 版本记录
+
+| 构建号 | 版本号 | Git Commit | 源码目录 | 构建日期 | 操作者 | 说明 |
+|-------|--------|------------|----------|----------|--------|------|
+
+| AS53 | V0.92.54 | - | source | 2026-05-03 | luffy | 进度条修复(纯频点进度) + 错频模式默认开启 + 清理Server目录 |
+| AS52 | V0.92.53 | - | source | 2026-05-03 | luffy | 无电池显示 + 版本号统一 |
+| AS51 | V0.92.52 | - | source | 2026-05-02 | luffy | 错频模式 + 合格打印过滤 + 频点进度显示 + 修复提前标异常 |
+| AS50 | V0.92.45 | 67b6225 | source | 2026-05-02 | luffy | scipy/PIL 打包修复 + 远程 API get_manager 修复 + VERSION_LOG 创建 + spec 变量化 |
+
+## 烧录记录
+
+| 日期 | 构建号 | 版本号 | 操作者 | 串口 | 结果 |
+|------|--------|--------|--------|------|------|
+"""
+
+with open('VERSION_LOG.md', 'w', encoding='utf-8') as f:
+    f.write(version_log)
+print("Updated: VERSION_LOG.md")

@@ -91,8 +91,6 @@ class TestConfigWidget(QWidget):
         left_column.addStretch()
 
         # 右列：数据处理组 + 标签打印组
-        data_processing_group = self._create_data_processing_group()
-        right_column.addWidget(data_processing_group)
 
         label_printing_group = self._create_label_printing_group()
         right_column.addWidget(label_printing_group)
@@ -276,56 +274,6 @@ class TestConfigWidget(QWidget):
         layout.addLayout(mode2_layout)
 
 
-
-
-
-        return group
-
-    def _create_data_processing_group(self) -> QGroupBox:
-        """创建数据处理组"""
-        group = QGroupBox("数据处理")
-        group.setFont(QFont("", 10, QFont.Bold))
-
-        layout = QGridLayout(group)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        # 数据优化
-        self.data_optimization_check = QCheckBox("启用数据优化")
-        self.data_optimization_check.setToolTip("对测试数据进行优化处理，提高数据质量")
-        layout.addWidget(self.data_optimization_check, 0, 0, 1, 2)
-
-        # 异常值过滤
-        self.outlier_filter_check = QCheckBox("异常值过滤")
-        self.outlier_filter_check.setToolTip("自动过滤明显异常的测试数据")
-        layout.addWidget(self.outlier_filter_check, 1, 0, 1, 2)
-
-        # 数据平滑
-        self.data_smoothing_check = QCheckBox("数据平滑")
-        self.data_smoothing_check.setToolTip("对测试数据进行平滑处理，减少噪声影响")
-        layout.addWidget(self.data_smoothing_check, 2, 0, 1, 2)
-
-        # 平滑强度
-        layout.addWidget(QLabel("平滑强度:"), 3, 0)
-        self.smoothing_strength_slider = QSlider()  # 默认水平方向
-        self.smoothing_strength_slider.setRange(1, 10)
-        self.smoothing_strength_slider.setValue(5)
-        self.smoothing_strength_slider.setToolTip("数据平滑的强度，值越大平滑效果越强")
-        layout.addWidget(self.smoothing_strength_slider, 3, 1)
-
-        # 平滑强度标签
-        self.smoothing_strength_label = QLabel("5")
-        layout.addWidget(self.smoothing_strength_label, 3, 2)
-
-        # 自动保存数据
-        self.auto_save_check = QCheckBox("自动保存测试数据")
-        self.auto_save_check.setToolTip("测试完成后自动保存数据到数据库")
-        layout.addWidget(self.auto_save_check, 4, 0, 1, 2)
-
-        # 保存原始数据
-        self.save_raw_data_check = QCheckBox("保存原始数据")
-        self.save_raw_data_check.setToolTip("同时保存未处理的原始测试数据")
-        layout.addWidget(self.save_raw_data_check, 5, 0, 1, 2)
 
 
 
@@ -631,28 +579,12 @@ class TestConfigWidget(QWidget):
         self.critical_frequency_spin.valueChanged.connect(self._on_setting_changed)
 
         # 数据处理变更
-        self.data_optimization_check.toggled.connect(self._on_setting_changed)
-        self.outlier_filter_check.toggled.connect(self._on_setting_changed)
-        self.data_smoothing_check.toggled.connect(self._on_data_smoothing_changed)
-        self.smoothing_strength_slider.valueChanged.connect(self._on_smoothing_strength_changed)
-        self.auto_save_check.toggled.connect(self._on_setting_changed)
-        self.save_raw_data_check.toggled.connect(self._on_setting_changed)
 
         # 标签打印变更
         self.auto_print_check.toggled.connect(self._on_auto_print_changed)
         self.print_pass_only_check.toggled.connect(self._on_setting_changed)
         self.print_copies_spin.valueChanged.connect(self._on_setting_changed)
 
-    def _on_data_smoothing_changed(self, checked: bool):
-        """数据平滑开关变更处理"""
-        self.smoothing_strength_slider.setEnabled(checked)
-        self.smoothing_strength_label.setEnabled(checked)
-        self._on_setting_changed()
-
-    def _on_smoothing_strength_changed(self, value: int):
-        """平滑强度变更处理"""
-        self.smoothing_strength_label.setText(str(value))
-        self._on_setting_changed()
 
     def _on_continuous_mode_changed(self, checked: bool):
         """连续测试开关变更处理"""
@@ -921,24 +853,11 @@ class TestConfigWidget(QWidget):
             self.critical_frequency_spin.setValue(critical_frequency)
 
             # 加载数据处理
-            data_opt = self.config_manager.get('data.optimization', True)
-            self.data_optimization_check.setChecked(data_opt)
 
-            outlier_filter = self.config_manager.get('data.outlier_filter', True)
-            self.outlier_filter_check.setChecked(outlier_filter)
 
-            smoothing = self.config_manager.get('data.smoothing', False)
-            self.data_smoothing_check.setChecked(smoothing)
 
-            smoothing_strength = self.config_manager.get('data.smoothing_strength', 5)
-            self.smoothing_strength_slider.setValue(smoothing_strength)
-            self.smoothing_strength_label.setText(str(smoothing_strength))
 
-            auto_save = self.config_manager.get('data.auto_save', True)
-            self.auto_save_check.setChecked(auto_save)
 
-            save_raw = self.config_manager.get('data.save_raw', False)
-            self.save_raw_data_check.setChecked(save_raw)
 
 
 
@@ -959,7 +878,6 @@ class TestConfigWidget(QWidget):
             self._on_continuous_mode_changed(continuous_mode)
             self._on_sampling_test_changed(sampling_test)
             self._on_count_limit_changed(count_limit_enabled)
-            self._on_data_smoothing_changed(smoothing)
             self._on_auto_print_changed(auto_print)
 
             # 更新测试模式状态（确保临界频点设置的启用/禁用状态正确）
@@ -1014,12 +932,6 @@ class TestConfigWidget(QWidget):
             self.config_manager.set('test_params.critical_frequency', self.critical_frequency_spin.value())
 
             # 保存数据处理
-            self.config_manager.set('data.optimization', self.data_optimization_check.isChecked())
-            self.config_manager.set('data.outlier_filter', self.outlier_filter_check.isChecked())
-            self.config_manager.set('data.smoothing', self.data_smoothing_check.isChecked())
-            self.config_manager.set('data.smoothing_strength', self.smoothing_strength_slider.value())
-            self.config_manager.set('data.auto_save', self.auto_save_check.isChecked())
-            self.config_manager.set('data.save_raw', self.save_raw_data_check.isChecked())
 
 
 
@@ -1062,7 +974,6 @@ class TestConfigWidget(QWidget):
         # 更新控件状态
         self._on_continuous_mode_changed(self.continuous_mode_check.isChecked())
         self._on_count_limit_changed(self.test_count_limit_check.isChecked())
-        self._on_data_smoothing_changed(self.data_smoothing_check.isChecked())
         self._on_auto_print_changed(self.auto_print_check.isChecked())
         self._on_test_mode_changed(True)
 

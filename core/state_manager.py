@@ -324,13 +324,13 @@ class UnifiedStateManager:
         """验证测试状态转换是否合法"""
         # 定义合法的状态转换
         valid_transitions = {
-            TestState.IDLE: [TestState.PREPARING, TestState.ERROR],
+            TestState.IDLE: [TestState.PREPARING, TestState.FAILED, TestState.ERROR, TestState.COMPLETED],
             TestState.PREPARING: [TestState.RUNNING, TestState.FAILED, TestState.ERROR, TestState.IDLE],
             TestState.RUNNING: [TestState.PAUSED, TestState.STOPPING, TestState.COMPLETED, TestState.ERROR, TestState.FAILED],
             TestState.PAUSED: [TestState.RUNNING, TestState.STOPPING, TestState.ERROR],
             TestState.STOPPING: [TestState.IDLE, TestState.ERROR],
             TestState.COMPLETED: [TestState.IDLE],
-            TestState.FAILED: [TestState.IDLE],
+            TestState.FAILED: [TestState.IDLE, TestState.PREPARING, TestState.RUNNING],
             TestState.ERROR: [TestState.IDLE]
         }
         

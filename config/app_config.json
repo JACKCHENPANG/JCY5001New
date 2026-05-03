@@ -1,7 +1,7 @@
 ﻿{
   "app": {
     "name": "JCY5001AS鲸测云8路EIS阻抗筛选仪",
-    "version": "V0.92.53",
+    "version": "V0.92.54",
     "trial_days": 30,
     "start_date": "2025-05-26T07:28:23.393457",
     "show_startup_license_dialog": false

@@ -1,0 +1,184 @@
+{
+  "app": {
+    "name": "JCY5001A鲸测云8路EIS阻抗筛选仪",
+    "version": "V0.92.42",
+    "trial_days": 30,
+    "start_date": null,
+    "show_startup_license_dialog": false
+  },
+  "ui": {
+    "theme": "light",
+    "language": "zh_CN",
+    "window_size": [
+      1280,
+      800
+    ],
+    "window_position": [
+      100,
+      100
+    ],
+    "auto_save_layout": true
+  },
+  "batch_info": {
+    "batch_number": "",
+    "operator": "",
+    "cell_type": "磷酸铁锂",
+    "cell_spec": "21700",
+    "standard_voltage": 3.2,
+    "standard_capacity": 3000,
+    "standard_capacity_unit": "mAh",
+    "new_resistance": 6.0,
+    "eol_resistance": 12.0
+  },
+  "test_params": {
+    "test_mode": "simultaneous",
+    "gain": "auto",
+    "average_times": 1,
+    "battery_range": "10mΩ以下",
+    "resistance_range": "10R",
+    "voltage_range": {
+      "min": 2.0,
+      "max": 5.0
+    }
+  },
+  "frequency": {
+    "mode": "multi",
+    "list": [
+      0.119,
+      1,
+      10,
+      100,
+      1000
+    ],
+    "multi_freq": {
+      "preset": "磷酸铁锂",
+      "custom_list": [
+        0.119,
+        1,
+        10,
+        100,
+        1000
+      ],
+      "min_freq": 0.01,
+      "max_freq": 7800,
+      "points": 20,
+      "distribution": "log"
+    },
+    "preset_mode": "生产模式",
+    "frequency_order": "high_to_low"
+  },
+  "test": {
+    "continuous_mode": false,
+    "continuous_mode_delay": 2.0,
+    "auto_detect": false,
+    "data_optimization": true,
+    "optimization_delay": 0.5,
+    "enabled_channels": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "battery_coding": {
+      "mode": "scan",
+      "length_check": true,
+      "expected_length": 12,
+      "auto_rule": "BATCH_{batch}_{index:04d}"
+    },
+    "label_print": {
+      "enabled": false,
+      "code_type": "qr"
+    }
+  },
+  "battery_detection": {
+    "enabled": true,
+    "voltage_threshold_remove": 5.0,
+    "voltage_threshold_min": 2.0,
+    "voltage_threshold_max": 5.0,
+    "detection_interval": 1.0,
+    "stable_count_required": 3,
+    "auto_restart_delay": 2.0
+  },
+  "device": {
+    "connection": {
+      "port": "COM1",
+      "baudrate": 115200,
+      "timeout": 1.0
+    },
+    "channels": 8,
+    "printer": {
+      "name": "",
+      "connected": false
+    },
+    "barcode_scanner": {
+      "enabled": false,
+      "serial_length_min": 8,
+      "serial_length_max": 20,
+      "format_validation": true,
+      "allowed_chars": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+      "uniqueness_check": true,
+      "auto_generation": {
+        "enabled": true,
+        "prefix": "BAT",
+        "date_format": "YYYYMMDD",
+        "sequence_digits": 4,
+        "separator": "-"
+      }
+    }
+  },
+  "grade_settings": {
+    "rs_grades": 3,
+    "rct_grades": 3,
+    "rs_boundaries": [
+      5.0,
+      10.0
+    ],
+    "rct_boundaries": [
+      8.0,
+      15.0
+    ],
+    "rs_min": 0.1,
+    "rs_max": 50.0,
+    "rct_min": 0.1,
+    "rct_max": 100.0,
+    "rsei_min": 0.0,
+    "rsei_max": 10.0,
+    "voltage_min": 2.0,
+    "voltage_max": 5.0
+  },
+  "database": {
+    "path": "data/test_results.db",
+    "backup_enabled": true,
+    "backup_interval": 24
+  },
+  "printer": {
+    "type": "热敏打印机",
+    "name": "",
+    "connection": "USB",
+    "quality": "高质量",
+    "density": "high",
+    "contrast": "high"
+  },
+  "label_print": {
+    "auto_print": true,
+    "print_pass_only": false,
+    "copies": 1,
+    "quality": "高质量",
+    "font_enhancement": true,
+    "bold_enhancement": true
+  },
+  "logging": {
+    "enable_system_log": true,
+    "level": "INFO"
+  },
+  "communication": {
+    "enable_logging": false,
+    "protocol": "Modbus RTU",
+    "baudrate": "115200",
+    "timeout": 1.0
+  }
+}

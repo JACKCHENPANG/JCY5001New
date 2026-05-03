@@ -1,4 +1,4 @@
-# JCY5001AS鲸测云8路EIS阻抗筛选仪产线界面
+# JCY5001AS测试系统IS阻抗分析程序
 # 运行时依赖包列表
 # Author: Jack
 # Date: 2025-08-11
@@ -21,7 +21,7 @@ scikit-learn==1.7.0
 SQLAlchemy==2.0.40
 psycopg2-binary==2.9.10
 
-# ===== 串口通信 =====
+# ===== 接口通讯 =====
 pyserial==3.5
 pymodbus==3.9.2
 
@@ -59,7 +59,7 @@ pytz==2025.1
 # ===== 开发和调试工具 =====
 pytest==7.4.3
 
-# ===== 可选依赖（用于特定功能） =====
+# ===== 可选依赖（用于特定功能）=====
 # 阻抗分析
 impedance==1.7.1
 
@@ -68,7 +68,7 @@ pyqtgraph==0.13.3
 mplcursors==0.6
 seaborn==0.13.2
 
-# 打印机支持
+# 打印支持
 python-escpos==3.1
 
 # Web服务（如果需要）
@@ -77,6 +77,9 @@ flask-cors==6.0.0
 
 # 异步支持
 aiofiles==23.2.1
+
+# ===== MCP Model Context Protocol 支持 =====
+mcp>=1.0.0
 
 # ===== 说明 =====
 # 安装命令：

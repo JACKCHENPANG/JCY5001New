@@ -475,7 +475,7 @@ class TestExecutor:
             enabled_channel_indices = [ch - 1 for ch in valid_channels]  # 转换为0基索引
 
             # 检查是否启用并行错频模式
-            use_staggered_mode = test_config.get('use_parallel_staggered_mode', False)
+            use_staggered_mode = test_config.get('use_parallel_staggered_mode', True)
             critical_frequency = test_config.get('critical_frequency', 10.0)
 
             print(f"🔍 [测试执行器] 并行错频模式检查: use_staggered_mode={use_staggered_mode}, critical_frequency={critical_frequency}")
@@ -688,17 +688,8 @@ class TestExecutor:
                         if voltage is None:
                             voltage = 0.0
 
-                        # 修复使用总测试时间进度而不是频点进度
-                        total_test_time = self.progress_manager.get_test_elapsed_time()
-                        estimated_total_time = self.progress_manager.estimated_test_duration
-
-                        if total_test_time > 0 and estimated_total_time > 0:
-                            # 基于总测试时间的进度
-                            time_progress = min(95.0, (total_test_time / estimated_total_time) * 100)
-                            progress_value = int(time_progress)
-                        else:
-                            # 备用：使用基础进度
-                            progress_value = int(base_progress)
+                        # 纯频点进度：已完成频点占百分比
+                        progress_value = int(base_progress)
 
                         self.progress_callback(channel_num, {
                             'state': 'testing',
@@ -1445,29 +1436,9 @@ class TestExecutor:
                             except:
                                 total_frequencies = 20
 
-                            # 修复使用总测试时间进度而不是频点进度
-                            total_test_time = self.progress_manager.get_test_elapsed_time()
-                            estimated_total_time = self.progress_manager.estimated_test_duration
-
-                            if total_test_time > 0 and estimated_total_time > 0:
-                                # 基于总测试时间的进度
-                                time_progress = min(95.0, (total_test_time / estimated_total_time) * 100)
-                                continuous_progress = time_progress
-                            else:
-                                # 备用：使用进度管理器计算
-                                if hasattr(self, 'progress_manager') and self.progress_manager:
-                                    continuous_progress = self.progress_manager.calculate_channel_progress(
-                                        channel_num, frequency_index, total_frequencies,
-                                        elapsed_time, measurement_timeout, frequency_completed=False,
-                                        total_test_time=total_test_time, estimated_total_time=estimated_total_time
-                                    )
-                                else:
-                                    # 最后备用：基于测量时间的简单进度
-                                    if measurement_timeout > 0:
-                                        within_freq_progress = min(0.8, elapsed_time / measurement_timeout)
-                                        continuous_progress = 5 + within_freq_progress * 90
-                                    else:
-                                        continuous_progress = 5
+                            # 频点进度：测量中保持当前频点进度
+                            freq_progress = 5 + ((frequency_index - 1) / total_frequencies * 90)
+                            continuous_progress = freq_progress
 
                             # 修复使用锁定的测试前电压，而不是实时电压
                             voltage = self.pre_test_voltages.get(channel_num)
@@ -1499,164 +1470,36 @@ class TestExecutor:
                                 logger.debug(f"通道{channel_num}测量进度: {continuous_progress:.1f}% (已用时{elapsed_time:.1f}s)")
 
                 # 🚀 性能优化：检查所有启用通道的测量状态
-                all_completed = True
+                                all_completed = True
                 status_info = []
-                current_measurements = []
-                normal_channels = []  # 正常通道列表
+                normal_channels = []
 
                 for ch_idx in channel_indices:
                     channel_num = ch_idx + 1
-
-                    # 优化先检查通道是否已被标记为异常，避免不必要的SCPI查询
                     if self.exception_manager.is_channel_skipped(channel_num):
-                        logger.debug(f"通道{channel_num}已被跳过，不查询状态")
                         continue
-
-                    # 新增检查智能超时管理器中的异常通道
-                    if hasattr(self, 'smart_timeout_manager'):
-                        if self.smart_timeout_manager.should_fast_skip_channel(channel_num):
-                            logger.warning(f"通道{channel_num}连续异常，快速跳过")
-                            self.exception_manager.skipped_channels.add(channel_num)
-                            continue
-
                     status = self.comm_manager.get_measurement_status(ch_idx)
-                    status_info.append(f"CH{channel_num}:0x{status:04X}")
-
-                    # 增强通道异常检测（包含电压和响应时间信息）
-                    voltage = None
-                    response_time = None
-                    try:
-                        voltage = self.device_config_manager.read_channel_voltage(channel_num)
-                        response_time = (time.time() - measurement_start_time) * 1000  # 转换为毫秒
-                    except Exception as e:
-                        logger.debug(f"读取通道{channel_num}额外信息失败: {e}")
-
-                    is_channel_normal = self.exception_manager.check_channel_status(
-                        channel_num, status, frequency, voltage, response_time
-                    )
-
-                    if not is_channel_normal:
-                        # 通道异常，更新智能超时管理器
-                        if hasattr(self, 'smart_timeout_manager'):
-                            if status == 0x0003:  # 电池错误
-                                self.smart_timeout_manager.mark_channel_as_exception(channel_num, "电池异常")
-                            elif voltage and (voltage < 2.0 or voltage > 5.0):
-                                self.smart_timeout_manager.mark_channel_as_contact_poor(channel_num, "接触不良")
-                            else:
-                                self.smart_timeout_manager.mark_channel_as_exception(channel_num, f"状态异常(0x{status:04X})")
-
-                        logger.warning(f"通道{channel_num}异常，跳过测试")
-                        continue
-
+                    status_info.append("CH" + str(channel_num) + ":0x" + format(status, "04X"))
                     normal_channels.append(ch_idx)
-
-                    if status != 0x0006:  # 0x0006表示测量完成
+                    if status != 0x0006:
                         all_completed = False
 
-                # 🛠️ 增强数据验证：只对正常通道收集并验证测量数据
-                for ch_idx in normal_channels:
-                    try:
-                        impedance_data = self.comm_manager.read_impedance_data(ch_idx, frequency)
-                        if impedance_data:
-                            real_part = impedance_data.get('real', 0)
-                            imag_part = impedance_data.get('imag', 0)
-
-                            # 🛠️ 数据有效性检查：确保数据不为0且在合理范围内
-                            if (real_part != 0 or imag_part != 0) and abs(real_part) < 1000 and abs(imag_part) < 1000:
-                                current_measurements.append(complex(real_part, imag_part))
-                            else:
-                                logger.warning(f"通道{ch_idx+1}频点{frequency}Hz数据异常: real={real_part}, imag={imag_part}")
-                    except Exception as e:
-                        logger.warning(f"通道{ch_idx+1}频点{frequency}Hz数据读取失败: {e}")
-
-                # 增强检查是否所有正常通道都完成了测试
-                if len(normal_channels) == 0:
-                    # 所有通道都异常，记录异常信息并返回完成
-                    exception_summary = self.exception_manager.get_exception_summary()
-                    timeout_summary = self.smart_timeout_manager.get_exception_summary()
-
-                    logger.warning(f"频点{frequency}Hz所有通道都异常，跳过该频点")
-                    logger.warning(f"  异常通道: {exception_summary['skipped_channels']}")
-                    logger.warning(f"  超时管理器异常通道: {timeout_summary['exception_channels']}")
-                    logger.warning(f"  接触不良通道: {timeout_summary['contact_poor_channels']}")
-
-                    # 通知UI更新所有异常通道的状态
-                    for channel_num in range(1, 9):
-                        if self.exception_manager.is_channel_skipped(channel_num):
-                            exception_info = self.exception_manager.get_exception_info(channel_num)
-                            if exception_info and self.progress_callback:
-                                self.progress_callback(channel_num, {
-                                    'state': 'exception',
-                                    'progress': 0,
-                                    'message': f'异常跳过: {exception_info.error_message}',
-                                    'exception_type': exception_info.exception_type.value,
-                                    'error_message': exception_info.error_message
-                                })
-
-                    return True
-
-                # 🛠️ 暂时禁用早期完成检测，确保数据完整性
-                # 注释掉早期完成检测逻辑，等待完整的测量周期
-                # if (elapsed_time >= stability_check_interval and
-                # elapsed_time - last_stability_check >= stability_check_interval and
-                # current_measurements):
-                #
-                # recent_measurements.extend(current_measurements)
-                # if len(recent_measurements) > 10:  # 保持最近10个测量值
-                # recent_measurements = recent_measurements[-10:]
-                #
-                # # 检查稳定性
-                # if self.smart_timeout_manager.check_measurement_stability(frequency, recent_measurements):
-                # logger.info(f"🎯 频点{frequency}Hz提前完成 - 数据稳定 (用时: {elapsed_time:.1f}s)")
-                # actual_time = time.time() - measurement_start_time
-                # self.smart_timeout_manager.record_measurement_time(frequency, actual_time)
-                # return True
-                #
-                # last_stability_check = elapsed_time
-
-                # 每3秒打印一次状态信息（优化后的频率）
-                if int(elapsed_time) % 3 == 0 and int(elapsed_time) != int(elapsed_time - 0.1):
-                    normal_status = [f"CH{ch+1}:0x{self.comm_manager.get_measurement_status(ch):04X}" for ch in normal_channels]
-                    logger.debug(f"频点{frequency}Hz正常通道测量状态: {', '.join(normal_status)}")
-
                 if all_completed:
-                    normal_status = [f"CH{ch+1}:0x{self.comm_manager.get_measurement_status(ch):04X}" for ch in normal_channels]
-                    logger.info(f"频点{frequency}Hz测量完成 - 正常通道状态: {', '.join(normal_status)}")
-
-                    # 增强输出详细的异常通道总结
-                    exception_summary = self.exception_manager.get_exception_summary()
-                    timeout_summary = self.smart_timeout_manager.get_exception_summary()
-
-                    if exception_summary['total_exceptions'] > 0 or timeout_summary['total_exception_channels'] > 0:
-                        logger.info(f"频点{frequency}Hz异常通道总结:")
-                        logger.info(f"  异常管理器跳过: {exception_summary['skipped_channels']}")
-                        logger.info(f"  超时管理器异常: {timeout_summary['exception_channels']}")
-                        logger.info(f"  接触不良通道: {timeout_summary['contact_poor_channels']}")
-
-                        # 新增为异常通道记录超时时间
-                        for channel_num in exception_summary['skipped_channels']:
-                            if hasattr(self, 'smart_timeout_manager'):
-                                self.smart_timeout_manager.record_measurement_time(frequency, measurement_timeout)
-
-                    # 增强只为正常通道记录实际测量时间
                     actual_time = time.time() - measurement_start_time
                     self.smart_timeout_manager.record_measurement_time(frequency, actual_time)
-
-                    # 新增更新正常通道的进度为100%
                     for ch_idx in normal_channels:
-                        channel_num = ch_idx + 1
+                        cn = ch_idx + 1
                         if self.progress_callback:
-                            self.progress_callback(channel_num, {
+                            self.progress_callback(cn, {
                                 'state': 'measurement_completed',
                                 'progress': 100,
-                                'message': f'频点{frequency}Hz测量完成',
+                                'message': '频点' + str(frequency) + 'Hz测量完成',
                                 'frequency': frequency,
                                 'measurement_time': actual_time
                             })
-
                     return True
 
-                time.sleep(0.1)  # 🛠️ 保守调整：100ms轮询间隔（确保数据稳定性）
+                time.sleep(0.1)
 
             logger.warning(f"频点{frequency}Hz测量超时 (超时时间: {measurement_timeout:.1f}s)")
             # 记录超时时间

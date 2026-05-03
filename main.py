@@ -6,7 +6,7 @@ JCY5001AS 八通道8路EIS电化学阻抗谱测试仪
 
 Author: Jack
 Date: 2025-09-12
-Version: V0.92.53
+Version: V0.92.54
 """
 
 import logging
@@ -126,7 +126,7 @@ def setup_application():
     app = QApplication(sys.argv)
 
     app.setApplicationName("JCY5001AS 八通道EIS阻抗谱")
-    app.setApplicationVersion("V0.92.53")
+    app.setApplicationVersion("V0.92.54")
     app.setOrganizationName("鲸测云")
     app.setOrganizationDomain("jingceyun.com")
 

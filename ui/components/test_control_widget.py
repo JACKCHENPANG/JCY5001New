@@ -1277,7 +1277,7 @@ class TestControlWidget(QWidget):
                 if hasattr(main_window, 'test_flow_manager') and main_window.test_flow_manager:
                     # 重置测试流程管理器适配器状态
                     if main_window.test_flow_manager.is_testing:
-                        logger.warning("⚠️ 测试流程管理器状态不一致，强制重置")
+                        logger.debug("⚠️ 测试流程管理器状态不一致，强制重置")
                         main_window.test_flow_manager.is_testing = False
                         logger.debug("✅ 测试流程管理器状态已强制重置")
 

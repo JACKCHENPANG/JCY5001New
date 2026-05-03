@@ -293,9 +293,8 @@ class ParallelStaggeredTestManagerSimplified:
                             except Exception as e:
                                 logger.error(f"通道{channel_num}频点错误通知失败: {e}")
 
-                    # 停止全部测试，不执行低频点测试
-                    logger.error(f"❌ 因频点失败，停止全部测试（包括低频点）")
-                    return False
+                    # 继续执行低频点测试
+                    logger.warning(f"⚠️ 高频点测试有失败频点: {failed_frequencies}Hz，继续执行低频点测试")
 
             # 4. 使用重构后的同时测试执行器测试低频点
             if low_frequencies:

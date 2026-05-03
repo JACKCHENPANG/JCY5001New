@@ -832,6 +832,179 @@ class EISAnalyzer:
                 'data_points': 0
             }
 
+    def _hybrid_circuit_fit(self, frequencies: np.ndarray,
+                           real_parts: np.ndarray,
+                           imag_parts: np.ndarray,
+                           rs_init: float,
+                           rct_init: float) -> Dict:
+        """
+        混合电路拟合：用初值引导scipy精调，尝试C模型和CPE模型
+
+        Args:
+            frequencies: 频率数组 (Hz)
+            real_parts: 实部数组 (mΩ)
+            imag_parts: 虚部数组 (mΩ)
+            rs_init: 初始Rs值 (mΩ)
+            rct_init: 初始Rct值 (mΩ)
+
+        Returns:
+            Dict: 拟合结果
+        """
+        try:
+            omega = 2.0 * np.pi * frequencies  # 角频率
+            z_real = np.array(real_parts, dtype=float)
+            z_imag = np.array(imag_parts, dtype=float)
+
+            # ---- 模型1: Rs + Rct//C (理想电容) ----
+            def randles_c(omega, rs, rct, c):
+                """理想Randles电路: Rs + Rct//C"""
+                denom = 1.0 + (omega * rct * c) ** 2
+                real = rs + rct / denom
+                imag = -omega * rct * rct * c / denom
+                return np.concatenate([real, imag])
+
+            # 初值: Rs≈高频实部小值, Rct≈2×峰值, C≈1/(ω_peak*Rct)
+            peak_mask = (z_imag >= 0) & (omega >= 2*np.pi*1.0)
+            if np.any(peak_mask):
+                omega_peak = float(omega[peak_mask][np.argmax(z_imag[peak_mask])])
+            else:
+                omega_peak = 1000.0
+            c_init = 1.0 / (max(omega_peak, 1.0) * max(rct_init, 0.1))
+            p0_c = [max(rs_init, 0.01), max(rct_init, 0.01), min(max(c_init, 1e-9), 1.0)]
+            bounds_c = ([0, 0, 1e-12], [100, 200, 1.0])
+
+            try:
+                z_data = np.concatenate([z_real, z_imag])
+                popt_c, _ = curve_fit(randles_c, omega, z_data, p0=p0_c,
+                                      bounds=bounds_c, maxfev=5000)
+                z_fit_c = randles_c(omega, *popt_c)
+                n_c = len(z_real)
+                residual_c = np.mean((z_fit_c[:n_c] - z_real) ** 2 + (z_fit_c[n_c:] - z_imag) ** 2)
+            except Exception:
+                popt_c, residual_c = None, float('inf')
+
+            # ---- 模型2: Rs + Rct//CPE (常相位角元件) ----
+            def randles_cpe(omega, rs, rct, q, alpha):
+                """CPE-Randles电路: Rs + Rct//CPE
+                   CPE导纳: Y = (jω)^α * Q = ω^α*Q*(cos(απ/2) + j*sin(απ/2))
+                   并联: Z_parallel = 1/(1/Rct + Y_CPE)"""
+                w_alpha = omega ** alpha
+                y_re = w_alpha * q * np.cos(alpha * np.pi / 2.0)  # 导纳实部
+                y_im = w_alpha * q * np.sin(alpha * np.pi / 2.0)  # 导纳虚部
+                g = 1.0 / rct + y_re  # 总电导
+                b = y_im  # 总电纳
+                denom = g ** 2 + b ** 2
+                z_re = g / denom  # 并联部分实部
+                z_im = -b / denom  # 并联部分虚部
+                real = rs + z_re
+                imag = z_im
+                return np.concatenate([real, imag])
+
+            p0_cpe = [max(rs_init, 0.01), max(rct_init, 0.01), max(c_init * 10, 1e-6), 0.8]
+            bounds_cpe = ([0, 0, 1e-9, 0.1], [100, 200, 0.1, 1.0])
+
+            try:
+                popt_cpe, _ = curve_fit(randles_cpe, omega, z_data, p0=p0_cpe,
+                                        bounds=bounds_cpe, maxfev=5000)
+                z_fit_cpe = randles_cpe(omega, *popt_cpe)
+                residual_cpe = np.mean((z_fit_cpe[:n_c] - z_real) ** 2 + (z_fit_cpe[n_c:] - z_imag) ** 2)
+            except Exception:
+                popt_cpe, residual_cpe = None, float('inf')
+
+            # ---- 选择最佳模型 ----
+            result = {
+                'circuit_model': 'Rs + Rct//C',
+                'fit_method': 'peak_method',
+                'fit_error': 0.0,
+                'c_model': None,
+                'cpe_model': None,
+            }
+
+            # 比较两个拟合结果，选残差小的
+            best_residual = 1e10
+
+            if popt_c is not None and residual_c < 1e6:
+                best_residual = residual_c
+                result.update({
+                    'circuit_model': 'Rs + Rct//C',
+                    'fit_method': 'scipy_curve_fit',
+                    'rs_value': float(popt_c[0]),
+                    'rct_value': float(popt_c[1]),
+                    'c_value': float(popt_c[2]),
+                    'fit_error': float(np.sqrt(residual_c)),
+                    'c_model': {
+                        'rs': float(popt_c[0]),
+                        'rct': float(popt_c[1]),
+                        'c': float(popt_c[2]),
+                        'residual': float(residual_c),
+                    }
+                })
+
+            if popt_cpe is not None and residual_cpe < best_residual * 1.5:
+                best_residual = residual_cpe
+                result.update({
+                    'circuit_model': 'Rs + Rct//CPE',
+                    'fit_method': 'scipy_curve_fit',
+                    'rs_value': float(popt_cpe[0]),
+                    'rct_value': float(popt_cpe[1]),
+                    'q_value': float(popt_cpe[2]),
+                    'alpha_value': float(popt_cpe[3]),
+                    'fit_error': float(np.sqrt(residual_cpe)),
+                    'cpe_model': {
+                        'rs': float(popt_cpe[0]),
+                        'rct': float(popt_cpe[1]),
+                        'q': float(popt_cpe[2]),
+                        'alpha': float(popt_cpe[3]),
+                        'residual': float(residual_cpe),
+                    }
+                })
+
+            self.logger.info(f"✅ 混合拟合完成: 模型={result['circuit_model']}, "
+                             f"Rs={result.get('rs_value', 0.0):.3f}mΩ, "
+                             f"Rct={result.get('rct_value', 0.0):.3f}mΩ, "
+                             f"误差={result['fit_error']:.4f}")
+            return result
+
+        except Exception as e:
+            self.logger.error(f"混合电路拟合失败: {e}")
+            return {
+                'circuit_model': 'Rs + Rct//C',
+                'fit_method': 'peak_method',
+                'fit_error': 0.0,
+            }
+
+    def _calculate_semicircle_quality(self, frequencies, real_parts, imag_parts, rs_value, rct_peak):
+        try:
+            if rct_peak <= 0:
+                return {'quality': 'poor', 'r_squared': 0.0, 'reason': 'Rct无效'}
+            half_r = rct_peak / 2.0
+            cx = rs_value + half_r
+            distances = []
+            for i in range(len(real_parts)):
+                dx = real_parts[i] - cx
+                dy = imag_parts[i]
+                d_center = (dx*dx + dy*dy)**0.5
+                d_arc = abs(d_center - half_r) if d_center > 0 else half_r
+                distances.append(d_arc)
+            distances_arr = [float(d) for d in distances]
+            if half_r > 0 and len(distances_arr) > 0:
+                total_var = sum((((real_parts[i] - cx)**2 + imag_parts[i]**2)**0.5)**2 for i in range(len(real_parts)))
+                resid_var = sum(d**2 for d in distances_arr)
+                r_squared = max(0.0, min(1.0, 1.0 - resid_var / total_var)) if total_var > 0 else 0.0
+            else:
+                r_squared = 0.0
+            if r_squared >= 0.85:
+                quality, reason = 'good', f'R\u00b2={r_squared:.3f}'
+            elif r_squared >= 0.6:
+                quality, reason = 'fair', f'R\u00b2={r_squared:.3f}'
+            else:
+                quality, reason = 'poor', f'R\u00b2={r_squared:.3f}'
+            self.logger.info(f"\u534a\u5706\u8d28\u91cf\u8bc4\u4f30: {quality} ({reason})")
+            return {'quality': quality, 'r_squared': round(r_squared, 4), 'reason': reason}
+        except Exception as e:
+            self.logger.warning(f"\u534a\u5706\u8d28\u91cf\u8bc4\u4f30\u5931\u8d25: {e}")
+            return {'quality': 'fair', 'r_squared': 0.0, 'reason': '\u8bc4\u4f30\u5f02\u5e38'}
+
     def calculate_rs_rct_enhanced(self, frequencies: List[float],
                                  real_parts: List[float],
                                  imag_parts: List[float],
@@ -880,19 +1053,38 @@ class EISAnalyzer:
                 'frequency_range': [freq_array.min(), freq_array.max()],
             }
 
-            # 1) Rs：采用虚部过零点插值
+            # 1) Rs：采用虚部过零点插值（给scipy拟合做初值）
             rs_value = self._calculate_rs_zero_crossing(freq_array, real_array, imag_array)
-            results['rs_value'] = rs_value
 
-            # 2) Rct：统一使用2×正虚部峰值法（与图表显示一致）
+            # 2) Rct：统一使用2×正虚部峰值法（给scipy拟合做初值）
             rct_value = self._calculate_rct_peak_method(freq_array, imag_array)
-            
+
+            # 3) 低内阻电池（mΩ级及以下）峰值法比scipy拟合更稳定
+            #    混合拟合保留用于诊断记录，但不覆盖峰值法结果
+            hybrid_result = self._hybrid_circuit_fit(freq_array, real_array, imag_array, rs_value, rct_value)
+            fitted_rs = rs_value
+            fitted_rct = rct_value
+            self.logger.info(f"峰值法结果: Rs={rs_value:.3f}mΩ, Rct={rct_value:.3f}mΩ")
+
+            rs_value_final = max(fitted_rs, 0.001) if np.isfinite(fitted_rs) else rs_value
+            rct_value_final = max(fitted_rct, 0.001) if np.isfinite(fitted_rct) else rct_value
+
+            semicircle_quality = self._calculate_semicircle_quality(freq_array, real_array, imag_array, rs_value, rct_value)
+            results['fit_quality'] = semicircle_quality['quality']
+            results['fit_r_squared'] = semicircle_quality['r_squared']
+
             results.update({
-                'rs_value': float(rs_value),
-                'rct_value': float(rct_value),
+                'rs_value': float(rs_value_final),
+                'rct_value': float(rct_value_final),
                 'rsei_value': 0.0,
                 'w_impedance': 0.0,
-                'analysis_method': 'positive_peak_method_unified',
+                'analysis_method': 'peak_method',
+                'circuit_model': hybrid_result.get('circuit_model', 'Rs + Rct//C'),
+                'fit_error': hybrid_result.get('fit_error', 0.0),
+                'circuit_params': {
+                    'c_model': hybrid_result.get('c_model'),
+                    'cpe_model': hybrid_result.get('cpe_model'),
+                }
             })
 
             # 相位角参数维持原有计算

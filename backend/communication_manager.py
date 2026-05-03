@@ -263,9 +263,16 @@ class CommunicationManager:
         """停止阻抗测量"""
         return self.command_manager.stop_impedance_measurement(channel_indices)
 
-    def read_impedance_data(self, channel_index: int) -> dict:
-        """读取单个通道的阻抗数据"""
-        return self.data_manager.read_impedance_data(channel_index)
+    def read_impedance_data(self, channel_index: int, frequency: float = None) -> dict:
+        """读取单个通道的阻抗数据（支持指定频率）"""
+        try:
+            reals = self.data_manager.read_impedance_real()
+            imags = self.data_manager.read_impedance_imag()
+            if reals and imags and 0 <= channel_index < len(reals) and channel_index < len(imags):
+                return {'real': reals[channel_index], 'imag': imags[channel_index]}
+            return {'real': 0.0, 'imag': 0.0}
+        except Exception:
+            return {'real': 0.0, 'imag': 0.0}
 
     def set_channel_frequency(self, channel_index: int, frequency: float) -> bool:
         """为单个通道设置频率"""

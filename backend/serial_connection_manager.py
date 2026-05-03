@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 串口连接管理器
 负责串口连接的建立、维护、健康检查等功能
@@ -297,6 +297,7 @@ class SerialConnectionManager:
 
                 if len(response) > 0:
                     logger.debug(f"接收完成，总长度: {len(response)}")
+                    self.reset_failure_count()
                     return bytes(response)
                 else:
                     logger.debug("未接收到数据")

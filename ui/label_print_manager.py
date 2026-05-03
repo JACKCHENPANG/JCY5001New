@@ -1036,6 +1036,16 @@ class LabelPrintManager(QObject):
                 logger.warning("🖨️ [标签打印] 自动打印未启用，跳过打印")
                 return None
 
+
+            # 检查合格打印选项
+            print_pass_only = self.config_manager.get('label.print_pass_only', False)
+            if not force_print and print_pass_only:
+                is_pass = test_result.get('is_pass', False)
+                logger.info(f"🖨️ [标签打印] 合格打印模式: is_pass={is_pass}")
+                if not is_pass:
+                    logger.warning(f"🖨️ [标签打印] 不合格品，跳过打印")
+                    return None
+
             # 检查打印机状态
             printer_ready = self.is_printer_ready()
             logger.info(f"🖨️ [标签打印] 打印机就绪状态: {printer_ready}")

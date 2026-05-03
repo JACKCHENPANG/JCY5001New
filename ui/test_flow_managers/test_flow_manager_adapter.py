@@ -489,87 +489,48 @@ class TestFlowManagerAdapter(QObject):
             self.error_handler.handle_error("启动测试失败", str(e), "test")
             self.flow_controller.stop_test()
 
-    def _start_test_engine(self, batch_info: Dict[str, Any], battery_codes: List[str]) -> bool:
-        """启动测试引擎（异步方式避免UI卡死）"""
+    def _start_test_engine(self, batch_info, battery_codes):
+        """启动测试引擎（直接执行，去掉QTimer）"""
         try:
-
-            # 修复使用QTimer异步启动，避免UI卡死
-            from PyQt5.QtCore import QTimer
-
-            def async_start_test():
+            from backend.test_engine_adapter import TestEngineAdapter
+            from data.database_manager import DatabaseManager
+            db_path = self.config_manager.get('database.path', 'data/test_results.db')
+            logger.debug('数据库路径: ' + str(db_path))
+            db_manager = DatabaseManager(db_path)
+            self.test_engine = TestEngineAdapter(
+                config_manager=self.config_manager,
+                db_manager=db_manager,
+                comm_manager=self.comm_manager
+            )
+            self.test_engine.set_status_callback(self._on_test_engine_status)
+            self.test_engine.set_progress_callback(self._on_test_engine_progress)
+            self.test_engine.set_result_callback(self._on_test_engine_result)
+            if hasattr(self.test_engine, 'test_flow_controller') and self.test_engine.test_flow_controller:
+                if hasattr(self.test_engine.test_flow_controller, 'test_executor'):
+                    te = self.test_engine.test_flow_controller.test_executor
+                    if hasattr(te, 'set_status_callback'):
+                        te.set_status_callback(self._on_continuous_test_status)
+            self._setup_pending_upload_manager()
+            import threading
+            engine_ref = self.test_engine
+            def run_test():
                 try:
-                    # 创建TestEngineAdapter实例
-                    from backend.test_engine_adapter import TestEngineAdapter
-                    from data.database_manager import DatabaseManager
-
-                    # 获取数据库路径
-                    db_path = self.config_manager.get('database.path', 'data/test_results.db')
-                    logger.debug(f"数据库路径: {db_path}")
-
-                    # 创建数据库管理器
-                    db_manager = DatabaseManager(db_path)
-
-                    # 创建测试引擎适配器
-                    self.test_engine = TestEngineAdapter(
-                        config_manager=self.config_manager,
-                        db_manager=db_manager,
-                        comm_manager=self.comm_manager
-                    )
-
-                    # 设置回调函数
-                    self.test_engine.set_status_callback(self._on_test_engine_status)
-                    self.test_engine.set_progress_callback(self._on_test_engine_progress)
-                    self.test_engine.set_result_callback(self._on_test_engine_result)
-
-                    # 修复设置连续测试状态回调
-                    if hasattr(self.test_engine, 'test_flow_controller') and self.test_engine.test_flow_controller:
-                        if hasattr(self.test_engine.test_flow_controller, 'test_executor'):
-                            test_executor = self.test_engine.test_flow_controller.test_executor
-                            if hasattr(test_executor, 'set_status_callback'):
-                                test_executor.set_status_callback(self._on_continuous_test_status)
-                                logger.info("✅ 连续测试状态回调已设置")
-
-                    # 新增设置待处理的数据上传管理器
-                    self._setup_pending_upload_manager()
-
-                    # 修复使用线程启动批次测试，避免阻塞
-                    import threading
-
-                    # 保存引用避免线程中访问问题
-                    test_engine_ref = self.test_engine
-
-                    def run_test():
-                        try:
-                            success = test_engine_ref.start_batch_test(batch_info, battery_codes)
-                            if success:
-                                logger.info("✅ 测试引擎启动成功")
-                            else:
-                                logger.error("❌ 测试引擎启动失败")
-                        except Exception as e:
-                            logger.error(f"线程中启动测试失败: {e}")
-
-                    test_thread = threading.Thread(target=run_test, daemon=True)
-                    test_thread.start()
-
-                    logger.info("✅ 测试引擎异步启动完成")
-
+                    ok = engine_ref.start_batch_test(batch_info, battery_codes)
+                    if ok:
+                        logger.info('测试引擎启动成功')
+                    else:
+                        logger.error('测试引擎启动失败')
                 except Exception as e:
-                    logger.error(f"异步启动测试引擎失败: {e}")
-                    import traceback
-                    logger.error(f"详细错误信息: {traceback.format_exc()}")
-
-            # 使用QTimer延迟执行，确保UI响应
-            QTimer.singleShot(100, async_start_test)
-
-            # 立即返回True，表示启动请求已接受
+                    logger.error('线程中启动测试失败: ' + str(e))
+            t = threading.Thread(target=run_test, daemon=True)
+            t.start()
+            logger.info('测试引擎启动完成')
             return True
-
         except Exception as e:
-            logger.error(f"启动测试引擎失败: {e}")
+            logger.error('启动测试引擎失败: ' + str(e))
             import traceback
-            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            logger.error('详细: ' + traceback.format_exc())
             return False
-
     def _on_test_engine_status(self, is_testing: bool):
         """测试引擎状态回调"""
         try:

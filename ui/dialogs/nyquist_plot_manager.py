@@ -403,12 +403,6 @@ class NyquistPlotManager:
 
         options_layout.addWidget(self.legend_checkbox)
 
-        # 图表放大显示按钮
-        self.zoom_window_button = QPushButton("放大显示")
-        self.zoom_window_button.setToolTip("在独立窗口中放大显示奈奎斯特图，便于详细查看")
-        self.zoom_window_button.clicked.connect(self._open_zoom_window)
-        options_layout.addWidget(self.zoom_window_button)
-
         main_layout.addLayout(options_layout)
 
         return controls_widget
@@ -528,66 +522,6 @@ class NyquistPlotManager:
             self._redraw_current_plot()
         else:
             logger.debug("无当前数据，跳过重绘")
-
-    def _open_zoom_window(self):
-        """打开放大显示窗口"""
-        try:
-            # 不再阻止放大窗口：即使当前缓存为空也允许打开，内部尽力组装数据
-            from .nyquist_zoom_window import NyquistZoomWindow
-
-            # 选择数据源
-            has_multi = bool(self._multi_channel_mode and self._selected_channels_data)
-            details_data = list(getattr(self, '_original_test_data', []) or [])
-
-            # 兜底：如果没有原始明细但有当前绘图点，尝试转换为明细格式
-            if not details_data and self._current_plot_data:
-                try:
-                    converted = []
-                    for d in self._current_plot_data:
-                        converted.append({
-                            'frequency': d.get('frequency', 0),
-                            'impedance_real': d.get('real_mohm', d.get('real', 0)),
-                            'impedance_imag': d.get('imag_mohm', d.get('imag', 0)),
-                            'test_sequence': d.get('sequence', 0)
-                        })
-                    details_data = converted
-                    logger.debug(f"放大窗口使用转换后的当前绘图数据: {len(details_data)} 点")
-                except Exception as ce:
-                    logger.debug(f"转换当前绘图数据为明细格式失败: {ce}")
-
-            # 创建放大窗口
-            if has_multi:
-                zoom_window = NyquistZoomWindow(
-                    parent=self.parent_widget,
-                    multi_channel_data=self._selected_channels_data,
-                    show_fitted_curve=self._show_fitted_curve,
-                    show_legend=self._show_legend,
-                    show_assist_markers=getattr(self, '_show_assist_markers', True),
-                    impedance_unit=self._impedance_unit
-                )
-            else:
-                zoom_window = NyquistZoomWindow(
-                    parent=self.parent_widget,
-                    single_channel_data=details_data,
-                    test_result=getattr(self, '_last_test_result', None),
-                    show_fitted_curve=self._show_fitted_curve,
-                    show_legend=self._show_legend,
-                    show_assist_markers=getattr(self, '_show_assist_markers', True),
-                    impedance_unit=self._impedance_unit
-                )
-
-            # 显示窗口
-            zoom_window.show()
-            logger.info("放大显示窗口已打开")
-
-        except ImportError:
-            logger.error("放大显示窗口类未找到，需要先创建NyquistZoomWindow类")
-            from PyQt5.QtWidgets import QMessageBox
-            QMessageBox.warning(self.parent_widget, "错误", "放大显示功能暂不可用")
-        except Exception as e:
-            logger.error(f"打开放大显示窗口失败: {e}")
-            from PyQt5.QtWidgets import QMessageBox
-            QMessageBox.critical(self.parent_widget, "错误", f"打开放大显示窗口失败:\n{str(e)}")
 
     def update_single_channel_plot(self, details: List[Dict], test_result: Dict = None):
         """更新单通道奈奎斯特图 - 完全重写版本，修复显示问题"""

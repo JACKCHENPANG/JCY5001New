@@ -58,14 +58,14 @@ class TestParameterCalculator:
         """
         try:
             if not rct_values or len(rct_values) < 2:
-                logger.warning("Rct值数量不足，无法计算变异系数")
+                logger.debug("Rct值数量不足，无法计算变异系数")
                 return 0.0
             
             # 过滤无效值
             valid_values = [v for v in rct_values if v > 0 and not math.isnan(v) and not math.isinf(v)]
             
             if len(valid_values) < 2:
-                logger.warning("有效Rct值数量不足，无法计算变异系数")
+                logger.debug("有效Rct值数量不足，无法计算变异系数")
                 return 0.0
             
             # 计算平均值和标准差
