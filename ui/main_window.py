@@ -3465,10 +3465,10 @@ class MainWindow(QMainWindow):
     def _on_battery_removed(self, channel_num: int, voltage: float):
         """电池移除回调处理"""
         try:
-            # 检查是否启用自动侦测模式
-            auto_detect = self.config_manager.get('test.auto_detect', False)
-            if not auto_detect:
-                logger.debug(f"自动侦测模式未启用，忽略通道{channel_num}电池移除事件（电压={voltage:.3f}V）")
+            # 检查是否启用电池侦测（独立于自动侦测模式）
+            battery_detect = self.config_manager.get('battery_detection.enabled', True)
+            if not battery_detect:
+                logger.debug(f"电池侦测未启用，忽略通道{channel_num}电池移除事件（电压={voltage:.3f}V）")
                 return
 
             logger.info(f"🔋 主窗口收到电池移除事件: 通道{channel_num}, 电压{voltage:.3f}V")
@@ -3805,10 +3805,10 @@ class MainWindow(QMainWindow):
         try:
             logger.info(f"🔋 [回调] 收到通道{channel_num}电池状态更新: {status}, 电压{voltage:.3f}V")
 
-            # 检查是否启用自动侦测模式
-            auto_detect = self.config_manager.get('test.auto_detect', False)
-            if not auto_detect:
-                logger.debug(f"自动侦测模式未启用，忽略通道{channel_num}状态更新（状态={status}, 电压={voltage:.3f}V）")
+            # 检查是否启用电池侦测（独立于自动侦测模式）
+            battery_detect = self.config_manager.get('battery_detection.enabled', True)
+            if not battery_detect:
+                logger.debug(f"电池侦测未启用，忽略通道{channel_num}状态更新（状态={status}, 电压={voltage:.3f}V）")
                 return
 
             logger.info(f"🔋 [回调] 自动侦测模式已启用，处理通道{channel_num}状态更新: {status}, 电压{voltage:.3f}V")
