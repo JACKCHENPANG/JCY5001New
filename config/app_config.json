@@ -90,7 +90,7 @@
   "test": {
     "continuous_mode": false,
     "continuous_mode_delay": 2.0,
-    "auto_detect": true,
+    "auto_detect": false,
     "data_optimization": true,
     "optimization_delay": 0.5,
     "enabled_channels": [

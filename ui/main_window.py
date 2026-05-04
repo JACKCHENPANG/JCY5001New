@@ -752,10 +752,10 @@ class MainWindow(QMainWindow):
 
     def _start_battery_detection_on_connection(self):
         """设备连接后启动电池检测"""
-        # 检查是否启用自动侦测模式
-        auto_detect = self.config_manager.get('test.auto_detect', False)
-        if not auto_detect:
-            logger.info("自动侦测模式未启用，跳过电池检测启动")
+        # 检查是否启用电池侦测（独立于自动侦测模式）
+        battery_detect = self.config_manager.get('battery_detection.enabled', True)
+        if not battery_detect:
+            logger.info("电池侦测未启用，跳过电池检测启动")
             return
 
         # 延迟启动电池检测，确保设备连接稳定
@@ -770,10 +770,10 @@ class MainWindow(QMainWindow):
     def _do_start_battery_detection(self):
         """实际启动电池检测"""
         try:
-            # 检查是否启用自动侦测模式
-            auto_detect = self.config_manager.get('test.auto_detect', False)
-            if not auto_detect:
-                logger.info("自动侦测模式未启用，跳过电池检测启动")
+            # 检查是否启用电池侦测（独立于自动侦测模式）
+            battery_detect = self.config_manager.get('battery_detection.enabled', True)
+            if not battery_detect:
+                logger.info("电池侦测未启用，跳过电池检测启动")
                 return
 
             # 启动电池检测
