@@ -1,7 +1,7 @@
 {
   "app": {
-    "name": "JCY5001AS",
-    "version": "V0.92.54",
+    "name": "JCY5001 八通道EIS综合测试仪",
+    "version": "V0.92.56",
     "trial_days": 30,
     "start_date": null,
     "show_startup_license_dialog": false
@@ -309,12 +309,12 @@
     "copies": 1
   },
   "test_count": {
-    "channel_1": 1,
-    "channel_2": 1,
-    "channel_3": 1,
-    "channel_4": 1,
-    "channel_5": 1,
-    "channel_6": 1
+    "channel_1": 4,
+    "channel_2": 4,
+    "channel_3": 4,
+    "channel_4": 4,
+    "channel_5": 4,
+    "channel_6": 4
   },
-  "version": "V0.92.55"
+  "version": "V0.92.56"
 }

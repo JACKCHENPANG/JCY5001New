@@ -1506,6 +1506,17 @@ class ChannelDisplayWidget(QWidget):
             logger.error(f"详细错误信息: {traceback.format_exc()}")
             # 确保异常不会导致程序闪退
 
+    def update_frequency_info(self, frequency: float, current_index: int, total_count: int, status: str = "waiting"):
+        """Update frequency progress label"""
+        try:
+            if hasattr(self, "frequency_progress_label") and self.frequency_progress_label:
+                if status == "completed":
+                    self.frequency_progress_label.setText(f"频点: {total_count}/{total_count}")
+                else:
+                    self.frequency_progress_label.setText(f"频点: {current_index}/{total_count}")
+        except Exception:
+            pass
+
     def update_test_progress(self, progress_data: dict):
         """
         更新测试进度（新增方法，用于与通道容器兼容）

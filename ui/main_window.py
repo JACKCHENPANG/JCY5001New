@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
         self._all_batteries_removed = False  # 所有电池都已移除
         self._user_manual_stop_battery_detection = False  # 用户是否手动停止了电池侦测模式
 
-        print("🎯 主窗口初始化完成，准备显示窗口...")
+        logger.info("窗口初始化完成，准备显示界面...")
 
         # 延迟检查授权状态（确保UI组件已完全初始化）
         QTimer.singleShot(1000, self.authorization_manager.check_license_on_startup)
@@ -531,7 +531,7 @@ class MainWindow(QMainWindow):
                 logger.info("✅ 电池检测回调函数设置完成")
 
                 # 检查是否启用自动侦测模式，如果启用则启动检测
-                auto_detect = self.config_manager.get('test.auto_detect', False)
+                auto_detect = self.config_manager.get('battery_detection.enabled', True)
                 if auto_detect:
                     logger.info("🔋 自动侦测模式已启用，准备启动电池检测")
                 else:
