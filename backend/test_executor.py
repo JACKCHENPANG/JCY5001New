@@ -475,7 +475,7 @@ class TestExecutor:
             enabled_channel_indices = [ch - 1 for ch in valid_channels]  # 转换为0基索引
 
             # 检查是否启用并行错频模式
-            use_staggered_mode = test_config.get('use_parallel_staggered_mode', True)
+            use_staggered_mode = True  # 强制错频模式，同时测试已禁用
             critical_frequency = test_config.get('critical_frequency', 10.0)
 
             print(f"🔍 [测试执行器] 并行错频模式检查: use_staggered_mode={use_staggered_mode}, critical_frequency={critical_frequency}")

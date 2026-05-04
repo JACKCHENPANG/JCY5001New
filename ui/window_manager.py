@@ -48,7 +48,7 @@ class WindowManager:
         """设置窗口基本属性"""
         try:
             # 设置窗口标题，包含版本号
-            app_name = self.config_manager.get('app.name', 'JCY5001AS鲸测云8路EIS阻抗筛选仪')
+            app_name = self.config_manager.get('app.name', 'JCY5001 八通道EIS综合测试仪')
             app_version = self.config_manager.get('app.version', 'V0.92.55')
             title = f"{app_name} {app_version}"
             self.main_window.setWindowTitle(title)

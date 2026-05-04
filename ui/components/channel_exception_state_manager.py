@@ -132,9 +132,9 @@ class ChannelExceptionStateManager(QObject):
             # 更新电压显示（如果有检测到电压）
             if self.voltage_label:
                 if voltage > 0:
-                    self.voltage_label.setText(f"{voltage:.3f}V")
+                    self.voltage_label.setText(f"{voltage:.3f}")
                 else:
-                    self.voltage_label.setText("0.000V")
+                    self.voltage_label.setText("0.000")
 
             # 清除Rs和Rct显示
             if self.rs_label:
@@ -226,7 +226,7 @@ class ChannelExceptionStateManager(QObject):
                 self.result_label.setText("--")
                 self.result_label.setObjectName("")
             if self.voltage_label:
-                self.voltage_label.setText("0.000V")
+                self.voltage_label.setText("0.000")
             if self.rs_label:
                 self.rs_label.setText("0.000mΩ")
             if self.rct_label:

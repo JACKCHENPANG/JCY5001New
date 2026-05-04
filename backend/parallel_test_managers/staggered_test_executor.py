@@ -190,6 +190,11 @@ class StaggeredTestExecutor:
                     logger.info(f"第{round_index + 1}轮错频测试在启动测量前被用户停止")
                     return False
 
+                # 2.5. 首轮预热延迟：给电路稳定时间，防止第一点跑飞
+                if round_index == 0:
+                    time.sleep(0.5)
+                    logger.debug("首轮错频预热延迟0.5s完成")
+
                 # 3. 同时启动所有通道
                 self.state = StaggeredTestState.STARTING_MEASUREMENT
                 if not self.comm_manager.start_impedance_measurement_broadcast(enabled_channels):
@@ -211,6 +216,7 @@ class StaggeredTestExecutor:
                 self.state = StaggeredTestState.MONITORING
                 if not self._monitor_staggered_completion(enabled_channels, config):
                     logger.warning(f"第{retry_index + 1}次尝试：错频测试监控超时")
+
                     if retry_index < max_retries - 1:
                         logger.info(f"等待0.1秒后重试...")
                         time.sleep(0.1)
@@ -219,19 +225,25 @@ class StaggeredTestExecutor:
                         logger.error(f"第{round_index + 1}轮错频测试：监控超时（已重试{max_retries}次）")
                         return False
 
+                # 监控完成→数据寄存器稳定延迟（防止读到旧数据）
+                time.sleep(0.4)
+
                 # 修复在读取数据前检查停止事件
                 if self.stop_event and self.stop_event.is_set():
                     logger.info(f"第{round_index + 1}轮错频测试在读取数据前被用户停止")
                     raise UserStoppedException(f"第{round_index + 1}轮错频测试在读取数据前被用户停止")
 
-                # 5. 读取阻抗数据
+                # 5. 读取阻抗数据（带二次验证）
                 self.state = StaggeredTestState.READING_DATA
                 # 只重读不重测！测量已完成，数据在设备寄存器
                 _read_ok = False
                 for _rr in range(10):
                     if self._read_staggered_data(frequency_assignments):
-                        _read_ok = True
-                        break
+                        # 二次验证：0.1s后再读一次对比
+                        time.sleep(0.1)
+                        if self._read_staggered_data(frequency_assignments):
+                            _read_ok = True
+                            break
                     time.sleep(0.05)
                 if not _read_ok:
                     logger.error(f"第{round_index + 1}轮错频：10次读取全部失败")
@@ -448,6 +460,36 @@ class StaggeredTestExecutor:
                         'magnitude': (channel_raw_data['real']**2 + channel_raw_data['imag']**2)**0.5,
                         'phase': 0.0  # 可以后续计算
                     }
+
+                    # 陈旧数据检测：与已有数据对比，防止读到未刷新的旧值
+                    new_r = channel_raw_data['real']
+                    new_i = channel_raw_data['imag']
+                    stale = False
+                    for fk in self.test_results:
+                        for ck in self.test_results[fk]:
+                            p = self.test_results[fk][ck]
+                            if isinstance(p, dict):
+                                pr = p.get('real_impedance', 0)
+                                pi = p.get('imaginary_impedance', 0)
+                                if abs(new_r - pr) < 0.5 and abs(new_i - pi) < 0.5:
+                                    stale = True
+                                    break
+                        if stale: break
+                    if stale:
+                        logger.warning(f"通道{channel_index+1}频点{frequency}Hz数据陈旧，等0.5s后重读")
+                        time.sleep(0.5)
+                        # 重新读取（不重测！等数据寄存器刷新）
+                        retry_data = self.comm_manager.read_impedance_data_broadcast()
+                        if retry_data and channel_index in retry_data:
+                            rd = retry_data[channel_index]
+                            if isinstance(rd, dict) and 'real' in rd:
+                                if abs(rd['real'] - new_r) > 1.0 or abs(rd['imag'] - new_i) > 1.0:
+                                    logger.info(f"通道{channel_index+1}重读数据已更新")
+                                    channel_raw_data.update({'real': rd['real'], 'imag': rd['imag']})
+                                    channel_data = {'real_impedance': rd['real'], 'imaginary_impedance': rd['imag'], 'magnitude': (rd['real']**2+rd['imag']**2)**0.5, 'phase': 0.0}
+                                else:
+                                    logger.warning(f"通道{channel_index+1}重读仍相同，使用原值")
+                        return False  # 返回False触发外层重试
 
                     # 初始化频率结果字典
                     if frequency not in self.test_results:

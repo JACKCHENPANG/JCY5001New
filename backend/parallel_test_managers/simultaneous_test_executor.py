@@ -184,6 +184,8 @@ class SimultaneousTestExecutor:
                         logger.info("同时测试在读取数据前被用户停止")
                         return True, failed_frequencies
 
+                    # 等待数据寄存器稳定（固件状态滞后于数据写入，0.3s settling）
+                    time.sleep(0.3)
                     # 读取数据
                     # 只重读不重测！测量已完成，数据在设备寄存器
                     _read_ok = False
@@ -191,7 +193,7 @@ class SimultaneousTestExecutor:
                         if self._read_simultaneous_data(frequency, enabled_channels):
                             _read_ok = True
                             break
-                        time.sleep(0.05)
+                        time.sleep(0.15)  # 增加等待时间，让数据寄存器充分更新
                     if not _read_ok:
                         logger.error(f"频率{frequency}Hz数据读取失败（10次内部重试）")
                         failed_frequencies.append(frequency)
@@ -357,12 +359,19 @@ class SimultaneousTestExecutor:
                         real_value = channel_raw_data.get('real', 0)
                         imag_value = channel_raw_data.get('imag', 0)
 
-                        # 验证数据有效性
-                        if real_value != 0 or imag_value != 0:
+                        # 陈旧数据检测：与同通道已有数据对比
+                        is_stale = False
+                        if frequency in self.test_results:
+                            for prev_ch in self.test_results[frequency].values():
+                                if isinstance(prev_ch, dict) and abs(real_value - prev_ch.get("real", 0)) < 1.0 and abs(imag_value - prev_ch.get("imag", 0)) < 1.0:
+                                    is_stale = True
+                                    break
+                        # 验证数据有效性（排除陈旧数据）
+                        if not is_stale and (real_value != 0 or imag_value != 0):
                             valid_data_count += 1
                             logger.debug(f"通道{channel_index + 1}数据有效: Re={real_value:.3f}μΩ, Im={imag_value:.3f}μΩ")
                         else:
-                            logger.warning(f"通道{channel_index + 1}数据无效: Re={real_value:.3f}μΩ, Im={imag_value:.3f}μΩ")
+                            logger.warning(f"通道{channel_index + 1}数据无效或陈旧: Re={real_value:.3f}μΩ, Im={imag_value:.3f}μΩ")
 
                 # 如果没有有效数据，重试
                 if valid_data_count == 0:
@@ -375,6 +384,19 @@ class SimultaneousTestExecutor:
                         logger.error(f"频率{frequency}Hz所有通道数据无效（已重试{max_retries}次）")
                         return False
 
+                # 二次读取验证：防止读到设备未刷新的旧数据
+                time.sleep(0.1)
+                verify_data = self.comm_manager.read_impedance_data_broadcast()
+                if verify_data and isinstance(verify_data, dict):
+                    for ch_idx in enabled_channels:
+                        if ch_idx in impedance_data and ch_idx in verify_data:
+                            orig = impedance_data[ch_idx]
+                            verf = verify_data[ch_idx]
+                            if isinstance(orig, dict) and isinstance(verf, dict):
+                                if abs(orig.get("real", 0) - verf.get("real", 0)) > 1.0 or abs(orig.get("imag", 0) - verf.get("imag", 0)) > 1.0:
+                                    logger.warning(f"通道{ch_idx+1}二次验证不一致，使用新数据")
+                                    impedance_data[ch_idx] = verf
+                
                 # 保存数据
                 if frequency not in self.test_results:
                     self.test_results[frequency] = {}

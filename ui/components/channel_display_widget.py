@@ -2021,7 +2021,7 @@ class ChannelDisplayWidget(QWidget):
             self.test_progress = 0
 
             # 更新显示
-            self.voltage_label.setText("0.000V")
+            self.voltage_label.setText("0.000")
             self.rs_label.setText("0.000mΩ")
             self.rct_label.setText("0.000mΩ")
             self.progress_bar.setValue(0)
@@ -4307,10 +4307,10 @@ class ChannelDisplayWidget(QWidget):
 
             # 更新电压显示（如果有检测到电压）
             if voltage > 0:
-                self.voltage_label.setText(f"{voltage:.3f}V")
+                self.voltage_label.setText(f"{voltage:.3f}")
                 self.voltage = voltage
             else:
-                self.voltage_label.setText("0.000V")
+                self.voltage_label.setText("0.000")
                 self.voltage = 0.0
 
             # 清除Rs和Rct显示

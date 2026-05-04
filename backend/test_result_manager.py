@@ -2017,15 +2017,14 @@ class TestResultManager:
             # 修复使用用户设置的原始批次号，不添加时间戳
             original_batch_number = batch_info.get('batch_number', 'BATCH')
 
-            # 首先检查是否已存在相同批次号的批次
-            existing_batch = self.db_manager.get_batch_by_number(original_batch_number)
-            if existing_batch:
-                logger.info(f"✅ 使用现有批次: ID={existing_batch['id']}, 批次号={original_batch_number}")
-                return existing_batch['id']
+            # 每次测试创建独立批次（添加时间戳确保唯一性）
+            import time
+            unique_batch_number = f"{original_batch_number}-{time.strftime('%H%M%S')}"
+            logger.info(f"🆕 创建独立批次: {unique_batch_number}")
 
-            # 如果不存在，创建新批次（使用原始批次号）
+            # 创建新批次
             new_batch_data = {
-                'batch_number': original_batch_number,  # 修复使用原始批次号
+                'batch_number': unique_batch_number,  # 每次测试独立批次号
                 'operator': batch_info.get('operator', 'system'),
                 'cell_type': batch_info.get('cell_type', '磷酸铁锂'),
                 'cell_spec': batch_info.get('cell_spec', '21700'),

@@ -141,9 +141,9 @@ class NyquistPlotManager:
         self._plot_timer = None
 
         # 新增智能显示范围设置
-        self._use_fixed_range = True  # 使用固定显示范围，避免自动缩放问题
-        self._fixed_x_range = (-5, 50)  # 默认X轴范围 (mΩ)
-        self._fixed_y_range = (-10, 20)  # 默认Y轴范围 (mΩ)
+        self._use_fixed_range = False  # 使用自适应显示范围，根据数据自动调整
+        self._fixed_x_range = (0, 20)  # 默认X轴范围 (mΩ, 电池典型值)
+        self._fixed_y_range = (-5, 5)  # 默认Y轴范围 (mΩ, 电池典型值)
         self._auto_adjust_range = True  # 自动调整范围以适应数据
 
         # 新增拟合曲线显示控制
@@ -166,20 +166,20 @@ class NyquistPlotManager:
         if not MATPLOTLIB_AVAILABLE:
             from PyQt5.QtWidgets import QLabel
             self.nyquist_canvas = QLabel("奈奎斯特图功能需要安装matplotlib库")
-            self.nyquist_canvas.setMinimumSize(400, 300)
+            self.nyquist_canvas.setMinimumSize(550, 400)
             return
 
         # 创建matplotlib图表
         self.nyquist_figure = Figure(figsize=(8, 6), dpi=100)
         self.nyquist_canvas = FigureCanvas(self.nyquist_figure)
-        self.nyquist_canvas.setMinimumSize(400, 300)
+        self.nyquist_canvas.setMinimumSize(550, 400)
 
         # 创建坐标轴
         self.nyquist_ax = self.nyquist_figure.add_subplot(111)
         self._update_axis_labels()
         self.nyquist_ax.set_title('奈奎斯特图')
         self.nyquist_ax.grid(True, alpha=0.3)
-        self.nyquist_ax.set_aspect('equal')
+        self.nyquist_ax.set_aspect('auto')  # 自适应比例，避免图表压缩
 
         # 设置鼠标悬停事件
         self._setup_hover_events()
@@ -763,7 +763,7 @@ class NyquistPlotManager:
                 self._set_optimal_axis_limits(all_real_data, all_imag_data)
 
             # 设置等比例（奈奎斯特图的重要特性）
-            self.nyquist_ax.set_aspect('equal')
+            self.nyquist_ax.set_aspect('auto')  # 自适应比例，避免图表压缩
             # === 辅助标记：Rs（虚部过零点）与半圆峰窗口 ===
             if getattr(self, '_show_assist_markers', True):
                 try:
@@ -1021,7 +1021,7 @@ class NyquistPlotManager:
 
             # 设置网格和等比例
             self.nyquist_ax.grid(True, alpha=0.3)
-            self.nyquist_ax.set_aspect('equal')
+            self.nyquist_ax.set_aspect('auto')  # 自适应比例，避免图表压缩
 
             # 设置坐标轴范围
             if all_real_parts and all_imag_parts:
@@ -1050,7 +1050,7 @@ class NyquistPlotManager:
             self._update_axis_labels()
             self.nyquist_ax.set_title('奈奎斯特图')
             self.nyquist_ax.grid(True, alpha=0.3)
-            self.nyquist_ax.set_aspect('equal')
+            self.nyquist_ax.set_aspect('auto')  # 自适应比例，避免图表压缩
 
             # 清空数据
             self._current_plot_data = []
@@ -1405,8 +1405,8 @@ class NyquistPlotManager:
             display_y_span = current_ylim[1] - current_ylim[0]
 
             # 如果数据范围小于显示范围的20%，认为显示范围过大
-            x_too_large = data_x_span > 0 and (data_x_span / display_x_span) < 0.2
-            y_too_large = data_y_span > 0 and (data_y_span / display_y_span) < 0.2
+            x_too_large = data_x_span > 0 and (data_x_span / display_x_span) < 0.4
+            y_too_large = data_y_span > 0 and (data_y_span / display_y_span) < 0.4
 
             # 如果需要重新缩放
             if x_out_of_range or y_out_of_range or x_too_large or y_too_large:
@@ -1721,7 +1721,7 @@ class NyquistPlotManager:
             self._update_axis_labels()
             self.nyquist_ax.set_title('奈奎斯特图')
             self.nyquist_ax.grid(True, alpha=0.3)
-            self.nyquist_ax.set_aspect('equal')
+            self.nyquist_ax.set_aspect('auto')  # 自适应比例，避免图表压缩
 
             # 重新设置悬停事件
             self._setup_hover_events()

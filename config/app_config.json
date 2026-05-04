@@ -99,9 +99,7 @@
       3,
       4,
       5,
-      6,
-      7,
-      8
+      6
     ],
     "battery_coding": {
       "mode": "scan",
@@ -309,12 +307,12 @@
     "copies": 1
   },
   "test_count": {
-    "channel_1": 4,
-    "channel_2": 4,
-    "channel_3": 4,
-    "channel_4": 4,
-    "channel_5": 4,
-    "channel_6": 4
+    "channel_1": 8,
+    "channel_2": 8,
+    "channel_3": 8,
+    "channel_4": 8,
+    "channel_5": 8,
+    "channel_6": 8
   },
   "version": "V0.92.56"
 }
