@@ -427,7 +427,9 @@ class DeviceConnectionManager(QObject):
             # 使用设置对话框中的设备设置页面
             from ui.dialogs.settings_dialog import SettingsDialog
 
-            dialog = SettingsDialog(self.config_manager, self.main_window)
+            # 修复：传递 comm_manager 以支持通道配置页面
+            comm_manager = getattr(self.main_window, 'comm_manager', None)
+            dialog = SettingsDialog(self.config_manager, self.main_window, comm_manager)
             dialog.switch_to_tab("设备设置")  # 切换到设备设置页面
 
             if dialog.exec_() == dialog.Accepted:

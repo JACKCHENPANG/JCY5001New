@@ -185,16 +185,17 @@ class SimultaneousTestExecutor:
                         return True, failed_frequencies
 
                     # 读取数据
-                    if not self._read_simultaneous_data(frequency, enabled_channels):
-                        logger.error(f"第{retry_index + 1}次尝试：读取频率{frequency}Hz数据失败")
-                        if retry_index < max_retries - 1:
-                            logger.info(f"等待0.5秒后重试...")
-                            time.sleep(0.5)
-                            continue
-                        else:
-                            logger.error(f"频率{frequency}Hz数据读取失败（已重试{max_retries}次）")
-                            failed_frequencies.append(frequency)
+                    # 只重读不重测！测量已完成，数据在设备寄存器
+                    _read_ok = False
+                    for _rr in range(10):
+                        if self._read_simultaneous_data(frequency, enabled_channels):
+                            _read_ok = True
                             break
+                        time.sleep(0.05)
+                    if not _read_ok:
+                        logger.error(f"频率{frequency}Hz数据读取失败（10次内部重试）")
+                        failed_frequencies.append(frequency)
+                        break
 
                     # 修复通知完成前检查停止事件
                     if self.stop_event and self.stop_event.is_set():

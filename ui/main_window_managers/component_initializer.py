@@ -155,7 +155,7 @@ class ComponentInitializer(QObject):
             if sync_config:
                 # 将同步配置合并到上传配置中
                 upload_config.update({
-                    'enable_database_sync': sync_config.get('enabled', True),
+                    'enable_database_sync': sync_config.get('enabled', False),
                     'sync_interval': sync_config.get('sync_interval', 300),
                     'incremental_sync': sync_config.get('incremental_sync', True),
                 })

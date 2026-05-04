@@ -226,20 +226,16 @@ class StaggeredTestExecutor:
 
                 # 5. 读取阻抗数据
                 self.state = StaggeredTestState.READING_DATA
-                if not self._read_staggered_data(frequency_assignments):
-                    logger.error(f"第{retry_index + 1}次尝试：读取错频数据失败")
-                    if retry_index < max_retries - 1:
-                        logger.info(f"等待0.1秒后重试...")
-                        time.sleep(0.1)
-                        continue
-                    else:
-                        logger.error(f"第{round_index + 1}轮错频测试：读取数据失败（已重试{max_retries}次）")
-                        return False
-
-                # 修复在通知完成前检查停止事件
-                if self.stop_event and self.stop_event.is_set():
-                    logger.info(f"第{round_index + 1}轮错频测试在通知完成前被用户停止")
-                    raise UserStoppedException(f"第{round_index + 1}轮错频测试在通知完成前被用户停止")
+                # 只重读不重测！测量已完成，数据在设备寄存器
+                _read_ok = False
+                for _rr in range(10):
+                    if self._read_staggered_data(frequency_assignments):
+                        _read_ok = True
+                        break
+                    time.sleep(0.05)
+                if not _read_ok:
+                    logger.error(f"第{round_index + 1}轮错频：10次读取全部失败")
+                    return False
 
                 # 成功完成，退出重试循环
                 round_success = True

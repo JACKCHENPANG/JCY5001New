@@ -1470,7 +1470,7 @@ class TestExecutor:
                                 logger.debug(f"通道{channel_num}测量进度: {continuous_progress:.1f}% (已用时{elapsed_time:.1f}s)")
 
                 # 🚀 性能优化：检查所有启用通道的测量状态
-                                all_completed = True
+                all_completed = True
                 status_info = []
                 normal_channels = []
 

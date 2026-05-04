@@ -251,7 +251,9 @@ class MenuManager:
             from ui.dialogs.settings_dialog import SettingsDialog
 
             # 创建并显示参数设置对话框
-            dialog = SettingsDialog(self.config_manager, self.main_window)
+            # 修复：传递 comm_manager 以支持通道配置页面
+            comm_manager = getattr(self.main_window, 'comm_manager', None)
+            dialog = SettingsDialog(self.config_manager, self.main_window, comm_manager)
 
             # 修复：连接设置应用信号到主界面刷新
             dialog.settings_applied.connect(self._on_settings_applied)
@@ -363,7 +365,7 @@ class MenuManager:
         try:
             # 获取应用信息
             app_name = self.config_manager.get('app.name', 'JCY5001AS鲸测云8路EIS阻抗筛选仪产线版')
-            app_version = self.config_manager.get('app.version', 'V0.92.54')
+            app_version = self.config_manager.get('app.version', 'V0.92.31')
             
             about_text = f"""
             <h2>{app_name}</h2>

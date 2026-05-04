@@ -95,6 +95,17 @@ class TestControlWidget(QWidget):
         self.test_mode_status_label.setObjectName("testModeStatusLabel")
         mode_status_layout.addWidget(self.test_mode_status_label)
 
+        # 分隔符
+        separator = QLabel("|")
+        separator.setStyleSheet("color: #999; font-weight: bold;")
+        mode_status_layout.addWidget(separator)
+
+        # 频点数量显示
+        self.frequency_count_label = QLabel("频点: 20")
+        self.frequency_count_label.setObjectName("frequencyCountLabel")
+        self.frequency_count_label.setStyleSheet("color: #666; font-size: 11px;")
+        mode_status_layout.addWidget(self.frequency_count_label)
+
         # 弹性空间
         mode_status_layout.addStretch()
 
@@ -1584,6 +1595,12 @@ class TestControlWidget(QWidget):
 
             # 更新显示
             self.test_mode_status_label.setText(mode_text)
+
+            # 更新频点数量显示
+            if hasattr(self, 'frequency_count_label'):
+                frequencies = self.config_manager.get('frequency.list', [])
+                freq_count = len(frequencies) if frequencies else 0
+                self.frequency_count_label.setText(f"频点: {freq_count}")
             logger.debug(f"测试模式状态更新: {mode_text}")
 
         except Exception as e:

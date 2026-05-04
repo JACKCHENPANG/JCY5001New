@@ -53,7 +53,7 @@ class ImpedanceDeviceManager(QObject):
         self.config_manager = config_manager
         self._loading = False
         
-        # 控件引用（由UI管理器设置）
+        # 控件引用(由UI管理器设置)
         self.serial_port_combo = None
         self.serial_baudrate_combo = None
         self.connection_timeout_spin = None
@@ -112,7 +112,7 @@ class ImpedanceDeviceManager(QObject):
             self.settings_changed.emit()
     
     def _manual_refresh_serial_ports(self):
-        """手动刷新串口列表（显示提示信息）"""
+        """手动刷新串口列表(显示提示信息)"""
         self._manual_refresh = True
         self._refresh_serial_ports()
         self._manual_refresh = False
@@ -187,7 +187,7 @@ class ImpedanceDeviceManager(QObject):
             QMessageBox.warning(self.parent(), "警告", "请先选择串口端口！")
             return
         
-        # 提取串口名称（如果包含描述信息）
+        # 提取串口名称(如果包含描述信息)
         port = port_text.split(' - ')[0] if ' - ' in port_text else port_text
         
         # 实际连接测试
@@ -227,7 +227,7 @@ class ImpedanceDeviceManager(QObject):
                     import time
                     time.sleep(0.1)
 
-                    # 核心测试：获取设备信息（主要是通道数量）
+                    # 核心测试：获取设备信息(主要是通道数量)
                     logger.info(f"开始测试串口 {port} 的设备通信...")
                     device_info = self._get_device_info(test_comm)
 
@@ -308,11 +308,11 @@ class ImpedanceDeviceManager(QObject):
                 '连接状态': '已连接'
             }
 
-            # 核心测试：读取通道数量（这是判断连接成功的关键指标）
+            # 核心测试：读取通道数量(这是判断连接成功的关键指标)
             channel_count_success = False
             try:
                 logger.debug("开始测试设备通信：读取通道数量...")
-                # 测试基本的Modbus通信 - 读取通道数（更可靠的寄存器）
+                # 测试基本的Modbus通信 - 读取通道数(更可靠的寄存器)
                 channel_count = comm_manager.get_channel_count()
                 logger.debug(f"通道数量查询结果: {channel_count}")
 
@@ -328,9 +328,9 @@ class ImpedanceDeviceManager(QObject):
                 # 通道数读取失败是连接测试失败的关键指标
                 raise Exception(f"设备通信失败：无法读取通道数量 - {e}")
 
-            # 如果通道数读取成功，继续其他测试（这些是附加信息，失败不影响连接判断）
+            # 如果通道数读取成功，继续其他测试(这些是附加信息，失败不影响连接判断)
 
-            # 附加测试1：尝试读取固件版本（失败不影响连接判断）
+            # 附加测试1：尝试读取固件版本(失败不影响连接判断)
             try:
                 logger.debug("附加测试：读取设备固件版本...")
                 if hasattr(comm_manager, 'data_manager'):
@@ -348,7 +348,7 @@ class ImpedanceDeviceManager(QObject):
                 device_info['固件版本'] = "读取失败"
                 logger.debug(f"⚠️ 读取固件版本失败: {e}")
 
-            # 附加测试2：尝试读取设备状态（失败不影响连接判断）
+            # 附加测试2：尝试读取设备状态(失败不影响连接判断)
             try:
                 logger.debug("附加测试：读取设备电池电压状态...")
                 if hasattr(comm_manager, 'read_battery_voltages'):
@@ -367,26 +367,26 @@ class ImpedanceDeviceManager(QObject):
                 device_info['活跃通道'] = "读取失败"
                 logger.debug(f"⚠️ 读取设备状态失败: {e}")
 
-            # 连接质量评估（基于核心测试结果）
+            # 连接质量评估(基于核心测试结果)
             success_count = 0
             total_tests = 3
 
-            # 核心测试：通道数（必须成功）
+            # 核心测试：通道数(必须成功)
             if channel_count_success:
                 success_count += 1
 
-            # 附加测试：固件版本（可选）
+            # 附加测试：固件版本(可选)
             if device_info.get('固件版本') not in ['读取失败', '接口不支持']:
                 success_count += 1
 
-            # 附加测试：活跃通道（可选）
+            # 附加测试：活跃通道(可选)
             if device_info.get('活跃通道') not in ['读取失败', '接口不支持']:
                 success_count += 1
 
             connection_quality = f"{success_count}/{total_tests}"
             device_info['连接质量'] = connection_quality
 
-            # 由于核心测试（通道数）已经成功，连接质量至少为1/3
+            # 由于核心测试(通道数)已经成功，连接质量至少为1/3
             logger.info(f"✅ 设备连接测试成功，连接质量: {connection_quality}")
             return device_info
 
@@ -396,7 +396,7 @@ class ImpedanceDeviceManager(QObject):
             raise Exception(f"设备连接测试失败: {e}")
 
     def load_settings(self):
-        """加载设置（优化版本）"""
+        """加载设置(优化版本)"""
         self._loading = True
         try:
             # 🚀 性能优化：延迟刷新串口列表，避免阻塞UI
@@ -442,7 +442,7 @@ class ImpedanceDeviceManager(QObject):
             if not self.serial_port_combo:
                 return
                 
-            # 提取串口名称（如果包含描述信息）
+            # 提取串口名称(如果包含描述信息)
             port_text = self.serial_port_combo.currentText()
             port = port_text.split(' - ')[0] if ' - ' in port_text else port_text
             
@@ -572,7 +572,7 @@ class BarcodeScannerManager(QObject):
         self.config_manager = config_manager
         self._loading = False
 
-        # 控件引用（由UI管理器设置）
+        # 控件引用(由UI管理器设置)
         self.barcode_scanner_enabled_check = None
         self.serial_length_min_spin = None
         self.serial_length_max_spin = None
@@ -583,7 +583,7 @@ class BarcodeScannerManager(QObject):
         self.sequence_digits_spin = None
         self.example_text_label = None
 
-        # UI控件组（用于控制可见性）
+        # UI控件组(用于控制可见性)
         self.scanner_widgets = []
         self.auto_gen_widgets = []
 
@@ -649,7 +649,7 @@ class BarcodeScannerManager(QObject):
                 if widget:
                     widget.setVisible(scanner_enabled)
 
-            # 设置自动生成相关控件的可见性（与扫码枪相反）
+            # 设置自动生成相关控件的可见性(与扫码枪相反)
             for widget in self.auto_gen_widgets:
                 if widget:
                     widget.setVisible(not scanner_enabled)
@@ -807,7 +807,7 @@ class PrinterManager(QObject):
         self.config_manager = config_manager
         self._loading = False
 
-        # 控件引用（由UI管理器设置）
+        # 控件引用(由UI管理器设置)
         self.printer_type_combo = None
         self.printer_name_combo = None
         self.printer_connection_combo = None
@@ -860,7 +860,7 @@ class PrinterManager(QObject):
         try:
             # 修复立即保存打印机选择，不等待应用按钮
             if printer_name and printer_name != "未检测到打印机":
-                # 移除状态标识（如"(默认)"）
+                # 移除状态标识(如"(默认)")
                 clean_printer_name = printer_name.replace(" (默认)", "")
 
                 # 立即保存到配置
@@ -869,7 +869,7 @@ class PrinterManager(QObject):
 
                 logger.info(f"✅ 打印机选择已立即保存: {clean_printer_name}")
 
-                # 通知打印机管理器更新（尝试找到主窗口）
+                # 通知打印机管理器更新(尝试找到主窗口)
                 try:
                     # 向上查找主窗口
                     widget = self.parent()
@@ -960,7 +960,7 @@ class PrinterManager(QObject):
             logger.error(f"清除打印机缓存失败: {e}")
 
     def _refresh_printer_list_silent(self):
-        """静默刷新打印机列表（不显示消息框）"""
+        """静默刷新打印机列表(不显示消息框)"""
         try:
             if not self.printer_name_combo:
                 return
@@ -1080,7 +1080,7 @@ class PrinterManager(QObject):
                 logger.debug(f"🎯 清理后匹配: {clean_target} -> {printer}")
                 return i
 
-        # 3. 部分匹配（包含关系）
+        # 3. 部分匹配(包含关系)
         for i, printer in enumerate(available_printers):
             if clean_target in printer or printer.replace(" (默认)", "").strip() in clean_target:
                 logger.debug(f"🎯 部分匹配: {clean_target} -> {printer}")
@@ -1090,7 +1090,7 @@ class PrinterManager(QObject):
         return -1
 
     def _get_system_printers(self) -> list:
-        """获取系统中的打印机列表（只显示在线的打印机）"""
+        """获取系统中的打印机列表(只显示在线的打印机)"""
         printers = []
 
         try:
@@ -1142,7 +1142,7 @@ class PrinterManager(QObject):
         return printers
 
     def _check_printer_online_status(self, printer_name: str) -> bool:
-        """检查打印机是否在线（可用）"""
+        """检查打印机是否在线(可用)"""
         try:
             if not PRINTER_SUPPORT:
                 return True  # 如果没有打印机支持模块，默认认为可用
@@ -1206,9 +1206,9 @@ class PrinterManager(QObject):
             # 0x00000800 = 服务器未知
 
             # 对于NIIMBOT，我们认为以下状态是在线的：
-            # 1. 状态为0（完全正常）
-            # 2. 只有手动进纸状态（0x00000020）
-            # 3. 只有缺纸状态（0x00000040）- 打印机在线但缺纸
+            # 1. 状态为0(完全正常)
+            # 2. 只有手动进纸状态(0x00000020)
+            # 3. 只有缺纸状态(0x00000040)- 打印机在线但缺纸
 
             if status == 0:
                 # 完全正常状态
@@ -1231,7 +1231,7 @@ class PrinterManager(QObject):
             return False
 
     def _get_printers_fallback(self) -> list:
-        """备用方法：通过系统命令获取打印机列表（只返回在线的打印机）"""
+        """备用方法：通过系统命令获取打印机列表(只返回在线的打印机)"""
         printers = []
 
         try:
@@ -1255,7 +1255,7 @@ class PrinterManager(QObject):
                         printer_name = ' '.join(parts[1:]) if len(parts) > 1 else ''
 
                         if printer_name and printer_name != 'Name':
-                            # 修复只添加在线的打印机（WorkOffline为FALSE）
+                            # 修复只添加在线的打印机(WorkOffline为FALSE)
                             if work_offline == 'FALSE':
                                 printers.append(printer_name)
                                 logger.debug(f"通过wmic发现在线打印机: {printer_name}")
@@ -1265,7 +1265,7 @@ class PrinterManager(QObject):
                         # 如果只有打印机名称，没有状态信息，默认认为在线
                         printer_name = parts[0]
                         printers.append(printer_name)
-                        logger.debug(f"通过wmic发现打印机（状态未知，默认在线）: {printer_name}")
+                        logger.debug(f"通过wmic发现打印机(状态未知，默认在线): {printer_name}")
 
         except Exception as e:
             logger.error(f"备用方法获取打印机列表失败: {e}")
@@ -1302,7 +1302,7 @@ class PrinterManager(QObject):
         except Exception as e:
             logger.error(f"保存打印机设置失败: {e}")
 
-        # 移除状态标识（如"(默认)"）
+        # 移除状态标识(如"(默认)")
         clean_printer_name = printer_name.replace(" (默认)", "")
 
         self.test_print_button.setEnabled(False)
@@ -1491,7 +1491,7 @@ class PrinterManager(QObject):
             return False
 
     def _print_text_test_page(self, printer_name: str) -> bool:
-        """打印文本测试页（备用方法）"""
+        """打印文本测试页(备用方法)"""
         try:
             import win32print
             import win32ui
@@ -1696,7 +1696,7 @@ class LoggingSettingsManager(QObject):
         self.config_manager = config_manager
         self._loading = False
 
-        # 控件引用（由UI管理器设置）
+        # 控件引用(由UI管理器设置)
         self.enable_logging_check = None
         self.enable_system_log_check = None
         self.log_level_combo = None
@@ -1891,7 +1891,7 @@ class DeviceSettingsUIManager(QObject):
         right_column = QVBoxLayout()
         right_column.setSpacing(15)
 
-        # 左列：阻抗测试仪设置（内容较多，单独占一列）
+        # 左列：阻抗测试仪设置(内容较多，单独占一列)
         impedance_group = self._create_impedance_group()
         left_column.addWidget(impedance_group)
 
@@ -1934,7 +1934,7 @@ class DeviceSettingsUIManager(QObject):
         self.controls['serial_port_combo'] = QComboBox()
         self.controls['serial_port_combo'].setEditable(True)
         self.controls['serial_port_combo'].setToolTip("选择串口端口号")
-        # 添加默认串口选项（防止刷新失败时下拉框为空）
+        # 添加默认串口选项(防止刷新失败时下拉框为空)
         self.controls['serial_port_combo'].addItems([
             "COM1", "COM2", "COM3", "COM4", "COM5", "COM6",
             "COM7", "COM8", "COM9", "COM10", "COM11", "COM12",
@@ -2014,7 +2014,7 @@ class DeviceSettingsUIManager(QObject):
         self.controls['barcode_scanner_enabled_check'].setToolTip("启用扫码枪进行电池序列号扫描")
         layout.addWidget(self.controls['barcode_scanner_enabled_check'], 0, 0, 1, 3)
 
-        # 序列号长度设置（启用扫码枪时显示）
+        # 序列号长度设置(启用扫码枪时显示)
         self.controls['serial_length_label'] = QLabel("序列号长度:")
         layout.addWidget(self.controls['serial_length_label'], 1, 0)
 
@@ -2046,7 +2046,7 @@ class DeviceSettingsUIManager(QObject):
         self.controls['uniqueness_check_check'].setToolTip("检查序列号是否与已有记录重复")
         layout.addWidget(self.controls['uniqueness_check_check'], 3, 0, 1, 3)
 
-        # 自动生成设置（禁用扫码枪时显示）
+        # 自动生成设置(禁用扫码枪时显示)
         self.controls['auto_generation_label'] = QLabel("自动生成规则:")
         layout.addWidget(self.controls['auto_generation_label'], 4, 0)
 
@@ -2089,7 +2089,7 @@ class DeviceSettingsUIManager(QObject):
         self.controls['example_text_label'].setToolTip("根据当前设置生成的序列号示例")
         layout.addWidget(self.controls['example_text_label'], 7, 1, 1, 3)
 
-        # 设置控件组（用于控制可见性）
+        # 设置控件组(用于控制可见性)
         self.controls['scanner_widgets'] = [
             self.controls['serial_length_label'],
             self.controls['serial_length_min_spin'],
@@ -2137,7 +2137,7 @@ class DeviceSettingsUIManager(QObject):
         self.controls['printer_name_combo'] = QComboBox()
         self.controls['printer_name_combo'].setEditable(True)
         self.controls['printer_name_combo'].setToolTip("选择或输入打印机名称")
-        # 添加默认打印机选项（防止刷新失败时下拉框为空）
+        # 添加默认打印机选项(防止刷新失败时下拉框为空)
         self.controls['printer_name_combo'].addItems([
             "Microsoft Print to PDF",
             "Microsoft XPS Document Writer",
@@ -2477,7 +2477,7 @@ class DeviceSettingsWidget(QWidget):
             return False
 
     def on_tab_activated(self):
-        """选项卡激活时调用（优化版本）"""
+        """选项卡激活时调用(优化版本)"""
         try:
             # 🚀 性能优化：立即同步连接状态，延迟执行耗时操作
             self.impedance_manager.sync_connection_status()
@@ -2494,7 +2494,7 @@ class DeviceSettingsWidget(QWidget):
     def _delayed_device_refresh(self):
         """延迟执行设备刷新操作"""
         try:
-            # 刷新设备列表（确保显示最新的设备信息）
+            # 刷新设备列表(确保显示最新的设备信息)
             self.impedance_manager._refresh_serial_ports()
             self.printer_manager._refresh_printer_list_silent()
 

@@ -1,37 +1,33 @@
-﻿{
+{
   "app": {
-    "name": "JCY5001AS鲸测云8路EIS阻抗筛选仪",
+    "name": "JCY5001AS",
     "version": "V0.92.54",
     "trial_days": 30,
-    "start_date": "2025-05-26T07:28:23.393457",
+    "start_date": null,
     "show_startup_license_dialog": false
   },
   "ui": {
     "theme": "light",
     "language": "zh_CN",
     "window_size": [
-      1920,
-      991
+      1280,
+      800
     ],
     "window_position": [
-      7,
-      -9
+      100,
+      100
     ],
     "auto_save_layout": true,
     "window": {
       "maximized": true,
-      "fullscreen": false,
-      "width": 1857,
-      "height": 991,
-      "x": 7,
-      "y": 0
+      "fullscreen": false
     }
   },
   "batch_info": {
-    "batch_number": "BATCH-20260502-001",
-    "operator": "AI-TEST",
+    "batch_number": "BATCH-20260504-001",
+    "operator": "未设置1",
     "cell_type": "磷酸铁锂",
-    "cell_spec": "555555555",
+    "cell_spec": "21700",
     "standard_voltage": 3.2,
     "standard_capacity": 3000,
     "standard_capacity_unit": "mAh",
@@ -40,18 +36,14 @@
   },
   "test_params": {
     "test_mode": "staggered",
-    "gain": "1",
+    "gain": "auto",
     "average_times": 1,
     "battery_range": "10mΩ以下",
-    "resistance_range": "5R",
+    "resistance_range": "10R",
     "voltage_range": {
-      "min": 3.1540000000000004,
-      "max": 3.254,
-      "standard": 3.21,
-      "tolerance_percent": 10.0
+      "min": 3.05,
+      "max": 3.37
     },
-    "delay": 100,
-    "voltage_tolerance": 0.5,
     "critical_frequency": 10.0
   },
   "frequency": {
@@ -81,11 +73,11 @@
     "multi_freq": {
       "preset": "磷酸铁锂",
       "custom_list": [
-        0.1192,
-        1.9074,
-        11.4441,
-        101.0897,
-        1007.0827
+        0.119,
+        1,
+        10,
+        100,
+        1000
       ],
       "min_freq": 0.01,
       "max_freq": 7800,
@@ -97,7 +89,7 @@
   },
   "test": {
     "continuous_mode": false,
-    "continuous_mode_delay": 2,
+    "continuous_mode_delay": 2.0,
     "auto_detect": false,
     "data_optimization": true,
     "optimization_delay": 0.5,
@@ -121,46 +113,38 @@
       "enabled": false,
       "code_type": "qr"
     },
-    "auto_start_on_all_batteries_ready": true,
-    "timeout": 60,
-    "retry_count": 10,
-    "interval": 2,
-    "functionality": "test_value_123",
-    "count_limit_enabled": true,
-    "max_count": 10,
+    "mode": "enhanced",
+    "frequency_range": {
+      "start": 7800,
+      "end": 0.01,
+      "points": 20
+    },
     "use_parallel_staggered_mode": true,
-    "critical_frequency": 15.0,
-    "timeout_seconds": 150,
-    "max_retries": 5,
-    "error_recovery": true,
-    "sampling_count": 10,
+    "critical_frequency": 10.0,
     "sampling_test": false,
-    "fast_startup": true,
-    "capacity_prediction_enabled": false
+    "sampling_count": 30,
+    "timeout": 60,
+    "retry_count": 2,
+    "interval": 2,
+    "count_limit_enabled": false,
+    "max_count": 100
   },
   "battery_detection": {
     "enabled": true,
     "voltage_threshold_remove": 5.0,
     "voltage_threshold_min": 2.0,
     "voltage_threshold_max": 5.0,
-    "detection_interval": 0.5,
-    "stable_count_required": 2,
-    "auto_restart_delay": 1.0,
-    "impedance_response_check_enabled": false,
-    "optimization_note": "已禁用阻抗响应检测以节省12秒启动时间"
+    "detection_interval": 1.0,
+    "stable_count_required": 3,
+    "auto_restart_delay": 2.0
   },
   "device": {
     "connection": {
-      "port": "COM9",
+      "port": "COM10",
       "baudrate": 115200,
       "timeout": 1.0,
-      "type": "modbus_rtu",
-      "device_address": 1,
-      "last_port": "COM9",
-      "retry_count": 1,
-      "retry_delay": 0.01,
-      "health_check_interval": 30.0,
-      "max_consecutive_failures": 15
+      "last_port": "COM10",
+      "com_port": "COM10"
     },
     "channels": 8,
     "printer": {
@@ -170,25 +154,22 @@
     "barcode_scanner": {
       "enabled": false,
       "serial_length_min": 8,
-      "serial_length_max": 30,
-      "format_validation": false,
+      "serial_length_max": 20,
+      "format_validation": true,
       "allowed_chars": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
       "uniqueness_check": true,
       "auto_generation": {
         "enabled": true,
-        "prefix": "JCY",
+        "prefix": "BAT",
         "date_format": "YYYYMMDD",
         "sequence_digits": 4,
         "separator": "-"
       }
     },
-    "address": "",
-    "port": 8080,
-    "timeout": 10,
+    "auto_detect": true,
+    "auto_connect": true,
     "auto_reconnect": true,
-    "reconnect_interval": 30,
-    "auto_connect": false,
-    "com_port": "COM9"
+    "reconnect_interval": 30
   },
   "grade_settings": {
     "rs_grades": 3,
@@ -201,41 +182,36 @@
       8.0,
       15.0
     ],
-    "rs_min": 14.013,
-    "rs_max": 16.476,
-    "rct_min": 3.896,
-    "rct_max": 5.906,
-    "rsei_min": 3.207,
-    "rsei_max": 3.728,
-    "voltage_min": 3.1540000000000004,
-    "voltage_max": 3.254,
-    "battery_type": 1,
-    "auto_calc_range": true,
-    "tolerance_mode": 1,
-    "voltage_diff": 0.05,
+    "rs_min": 0.1,
+    "rs_max": 50.0,
+    "rct_min": 0.1,
+    "rct_max": 100.0,
+    "rsei_min": 0.0,
+    "rsei_max": 10.0,
+    "voltage_min": 2.0,
+    "voltage_max": 5.0,
     "rs_grade_count": 3,
     "rs_auto_calc": true,
-    "rs1_min": 11.847,
-    "rs1_max": 14.834,
-    "rs2_min": 18.9055,
-    "rs2_max": 15.655,
-    "rs3_min": 49.964,
-    "rs3_max": 16.476,
+    "rs1_max": 16.733333333333334,
+    "rs2_max": 33.36666666666667,
+    "rs3_max": 50.0,
     "rct_auto_calc": true,
-    "rct1_min": 3.807,
-    "rct1_max": 4.566,
-    "rct2_min": 4.368333333333333,
-    "rct2_max": 5.236,
-    "rct3_min": 4.929666666666666,
-    "rct3_max": 5.906,
-    "standard_voltage": 3.204,
-    "min_voltage": 3.154,
-    "max_voltage": 3.254
+    "rct1_max": 33.400000000000006,
+    "rct2_max": 66.7,
+    "rct3_max": 100.0,
+    "standard_voltage": 3.21,
+    "min_voltage": 3.05,
+    "max_voltage": 3.37,
+    "auto_calc_range": true,
+    "voltage_diff": 0.16,
+    "battery_type": 0
   },
   "database": {
     "path": "data/test_results.db",
     "backup_enabled": true,
-    "backup_interval": 24
+    "backup_interval": 24,
+    "enable_database_sync": false,
+    "server_url": ""
   },
   "printer": {
     "type": "热敏打印机",
@@ -262,194 +238,83 @@
     "enable_logging": false,
     "protocol": "Modbus RTU",
     "baudrate": "115200",
-    "timeout": 0.3,
-    "data_bits": "8",
-    "stop_bits": "1",
-    "parity": "无",
-    "command_delay": 5,
-    "response_timeout": 0.3
+    "timeout": 1.0
   },
-  "storage_management": {
-    "database_size_limit_mb": 500,
-    "log_size_limit_mb": 20,
-    "warning_threshold_percent": 80,
-    "auto_cleanup_enabled": true,
-    "cleanup_frequency_days": 2,
-    "log_retention_days": 7,
-    "data_archive_days": 90,
-    "temp_file_cleanup_enabled": true,
-    "last_cleanup_time": "2025-08-11T11:07:28.210831",
-    "storage_monitoring_enabled": true,
-    "monitoring_interval_minutes": 60
+  "api": {
+    "port": 5000,
+    "enabled": true
   },
   "database_sync": {
     "enabled": false,
-    "server_url": "https://ukukukukukukukuk.uk",
+    "server_url": "",
+    "username": "",
+    "password": "",
+    "auto_auth": false,
     "sync_interval": 300,
-    "batch_size": 50,
-    "auto_auth": true,
-    "username": "admin",
-    "password": "Admin123!",
-    "incremental_sync": true,
-    "retry_count": 3,
-    "retry_delay": 2.0,
-    "timeout": 60
+    "incremental_sync": true
   },
-  "debug": {
-    "enable_license_debug": false,
-    "description": "调试功能配置 - 生产环境请保持为false"
-  },
-  "test_config": {
-    "auto_detect": false,
-    "data_optimization": true,
-    "optimization_delay": 0.5,
-    "battery_coding": {
-      "mode": "scan",
-      "length_check": true,
-      "expected_length": 12,
-      "auto_rule": "BATCH_{batch}_{index:04d}"
-    },
-    "label_print": {
-      "enabled": false,
-      "code_type": "qr"
-    }
+  "remote_api": {
+    "enabled": true,
+    "port": 5000,
+    "host": "0.0.0.0"
   },
   "product": {
-    "batch_number": "BATCH-20260502-001",
-    "operator": "AI-TEST",
-    "production_date": "周日 5月 3 2026",
+    "battery_spec": "21700",
+    "batch_number": "BATCH-20260504-001",
+    "operator": "未设置1",
+    "production_date": "周一 5月 4 2026",
     "remarks": "",
     "battery_type": "磷酸铁锂",
-    "battery_spec": "555555555",
     "standard_voltage": 3.2,
     "capacity": 3000,
     "capacity_unit": "mAh",
     "manufacturer": ""
   },
-  "impedance": {
-    "rs_min": 14.013,
-    "rs_grade1_max": 18.905,
-    "rs_grade2_max": 25.964,
-    "rs_grade3_max": 49.964,
-    "rct_min": 3.896,
-    "rct_grade1_max": 4.566,
-    "rct_grade2_max": 5.236,
-    "rct_grade3_max": 5.906,
-    "rs_grade_count": 3,
-    "rct_grade_count": 3
-  },
-  "data": {
-    "optimization": true,
-    "outlier_filter": true,
-    "smoothing": true,
-    "smoothing_strength": 10,
-    "curve_fitting": true,
-    "advanced_smoothing": true,
-    "auto_save": false,
-    "save_raw": false
-  },
-  "label": {
-    "auto_print": false,
-    "print_pass_only": false,
-    "template": "简化模板",
-    "copies": 1,
-    "coding_rule": "自定义规则",
-    "coding_prefix": "BAT",
-    "serial_start": 1,
-    "template_content": "电池标签\n电池码: {battery_code}\n测试时间: {test_time}\nRs值: {rs_value}mΩ\nRct值: {rct_value}mΩ\n档位: {grade}",
-    "width": 400,
-    "height": 240
-  },
-  "staggered_delay": {
-    "enable": true,
-    "high_frequency_threshold": 1007.0827,
-    "medium_frequency_threshold": 101.0897,
-    "low_frequency_threshold": 11.4441,
-    "high_frequency_delay": 15,
-    "medium_frequency_delay": 20,
-    "low_frequency_delay": 35,
-    "ultra_low_frequency_delay": 50,
-    "description": "错频启动延时配置(ms): 高频≥1007Hz, 中频101-1006Hz, 低频11-100Hz, 超低频<11Hz"
-  },
-  "staggered_startup": {
-    "mode": "parallel_staggered",
-    "description": "staggered_startup: parallel(0FH)/sequential/auto"
-  },
-  "test_count": {
-    "channel_1": 208,
-    "channel_2": 209,
-    "channel_3": 181,
-    "channel_4": 183,
-    "channel_5": 188,
-    "channel_6": 189,
-    "channel_7": 189,
-    "channel_8": 188
-  },
   "probe_pin": {
     "warning_threshold": 1000,
     "max_lifetime": 10000
   },
-  "serial_numbers": {
-    "used_list": [],
-    "current_sequence": 1
+  "impedance": {
+    "rs_grade_count": 3,
+    "rs_min": 0.1,
+    "rs_grade3_max": 50.0,
+    "rs_grade1_max": 17.0,
+    "rs_grade2_max": 33.5,
+    "rct_min": 0.1,
+    "rct_grade3_max": 100.0,
+    "rct_grade_count": 3,
+    "rct_grade1_max": 35.0,
+    "rct_grade2_max": 70.0
   },
-  "label_template": {
-    "current_template_id": "compact_30x20",
-    "current_name": "测试_导入",
-    "current_size": "50x30mm"
-  },
-  "voltage_standard_voltage": 3.204,
-  "voltage_min_voltage": 3.1540000000000004,
-  "voltage_max_voltage": 3.254,
-  "voltage_tolerance_percent": 5.0,
+  "voltage_standard_voltage": 3.21,
+  "voltage_min_voltage": 3.05,
+  "voltage_max_voltage": 3.37,
+  "voltage_voltage_diff": 0.16,
   "voltage_auto_calc_range": true,
-  "voltage_battery_type": 1,
-  "outlier_is_enabled": false,
-  "outlier_active_baseline_id": null,
-  "outlier_channel_mode": "average_all",
-  "outlier_deviation_threshold": 10.0,
-  "voltage_tolerance_mode": 1,
-  "voltage_voltage_diff": 0.05,
-  "data_upload": {
-    "enabled": false,
-    "server_url": "https://ukukukukukukukuk.uk",
-    "endpoint": "/api/test-results",
-    "timeout": 30,
-    "retry_count": 3,
-    "retry_delay": 1.0,
-    "batch_size": 10,
-    "device_id": "JCY5001A_001",
-    "auto_upload": true,
-    "upload_on_test_complete": true,
-    "upload_batch_results": false,
-    "auth_token": "",
-    "auth_type": "bearer",
-    "auto_auth": true,
-    "username": "admin",
-    "password": "Admin123!",
-    "token_refresh_threshold": 300,
-    "enable_resumable": false,
-    "description": "数据上传配置 - 测试完成后自动上传结果到远程服务器，支持自动认证，禁用断点续传以确保阻抗数据正常上传",
-    "enable_database_sync": false,
-    "sync_interval": 300,
-    "incremental_sync": true
+  "voltage_tolerance_percent": 5.0,
+  "voltage_battery_type": 0,
+  "rs_min": 0.1,
+  "rs_max": 50.0,
+  "rs1_max": 17.0,
+  "rs2_max": 33.5,
+  "rs3_max": 50.0,
+  "rct_min": 0.1,
+  "rct_max": 100.0,
+  "rct1_max": 35.0,
+  "rct2_max": 70.0,
+  "rct3_max": 100.0,
+  "label": {
+    "auto_print": false,
+    "print_pass_only": true,
+    "copies": 1
   },
-  "rs_min": 14.013,
-  "rs_max": 16.476,
-  "rs1_max": 18.905,
-  "rs2_max": 25.964,
-  "rs3_max": 49.964,
-  "rct_min": 3.896,
-  "rct_max": 5.906,
-  "rct1_max": 4.566,
-  "rct2_max": 5.236,
-  "rct3_max": 5.906,
-  "frequency_optimization": {
-    "enabled": false
+  "test_count": {
+    "channel_1": 1,
+    "channel_2": 1,
+    "channel_3": 1,
+    "channel_4": 1,
+    "channel_5": 1,
+    "channel_6": 1
   },
-  "temp": {
-    "battery_detection_barcodes": [],
-    "battery_detection_barcodes_ready": false
-  }
+  "version": "V0.92.55"
 }
-

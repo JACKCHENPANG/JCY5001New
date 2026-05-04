@@ -8,7 +8,7 @@ extra_datas = collect_data_files('matplotlib.backends')
 extra_hidden = collect_submodules('matplotlib.backends')
 # ===== 编译配置 =====
 # 构建号：每次发布+1
-BUILD_NUMBER = "53"
+BUILD_NUMBER = "54"
 
 a = Analysis(
     ['main.py'],

@@ -1613,7 +1613,7 @@ class ChannelDisplayWidget(QWidget):
                         # 设置一个标志，表示正在等待有效数据
                         self._waiting_for_valid_data = True
                         # 修复红色异常问题不再使用延迟检查，直接更新进度但不设置异常
-                        self.update_test_data(voltage, 0, 0, 100, 0.0)
+                        self.update_test_data(voltage, 0, 0, 100)
                         logger.debug(f" 通道{self.channel_number}测试完成但数据为0，跳过延迟检查避免红色异常误判")
 
                 # 更新Rct变异系数
