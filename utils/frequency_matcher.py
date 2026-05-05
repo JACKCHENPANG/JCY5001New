@@ -117,15 +117,22 @@ class FrequencyMatcher:
                 return self._last_result
 
             # 🚀 优化：使用二分查找（O(log n)而不是O(n)）
-            # bisect_left找到插入位置，即第一个大于等于target的位置
+            # 改为最近频点匹配，而不是单纯向上取整；避免 9.537→11.4441、0.477→0.9537
             insert_pos = bisect.bisect_left(self._sorted_frequencies, target_frequency)
 
-            # 如果目标频率超过所有预设频点
-            if insert_pos >= len(self._sorted_frequencies):
-                matched_freq = self._sorted_frequencies[-1]  # 最大频点
+            if insert_pos <= 0:
+                matched_freq = self._sorted_frequencies[0]
+            elif insert_pos >= len(self._sorted_frequencies):
+                matched_freq = self._sorted_frequencies[-1]
                 logger.warning(f"目标频率{target_frequency}Hz超出范围，使用最大预设频点{matched_freq}Hz")
             else:
-                matched_freq = self._sorted_frequencies[insert_pos]
+                lower_freq = self._sorted_frequencies[insert_pos - 1]
+                upper_freq = self._sorted_frequencies[insert_pos]
+                if abs(target_frequency - lower_freq) <= abs(upper_freq - target_frequency):
+                    matched_freq = lower_freq
+                else:
+                    matched_freq = upper_freq
+
                 # 只在有差异时记录日志，减少日志输出
                 if abs(matched_freq - target_frequency) > 0.001:
                     logger.debug(f"频率匹配: {target_frequency}Hz -> {matched_freq}Hz")
