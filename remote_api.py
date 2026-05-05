@@ -119,14 +119,22 @@ def start_test():
             except Exception:
                 control_widget = None
 
+        start_triggered = False
         if control_widget is not None and hasattr(control_widget, 'start_test'):
+            logger.info("Remote API: emitting test_control.start_test")
             control_widget.start_test.emit()
+            start_triggered = True
+            time.sleep(0.2)
+            current_state = get_state()
+            if not current_state.get("is_testing"):
+                logger.warning("Remote API: start_test emit后状态未拉起，回退到_main_window._on_start_test()")
+                _main_window._on_start_test()
         else:
-            # 回退：直接调用主窗口入口（兼容旧结构）
+            logger.warning("Remote API: test_control组件不可用，直接回退到_main_window._on_start_test()")
             _main_window._on_start_test()
 
         update_state(is_testing=True)
-        logger.info(f"Test started via remote API (channel={channel})")
+        logger.info(f"Test started via remote API (channel={channel}, triggered={start_triggered})")
         return jsonify({"success": True, "message": f"Test started (channel={channel})"})
     except Exception as e:
         logger.error(f"Failed to start test via API: {e}")
