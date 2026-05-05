@@ -110,8 +110,11 @@ def start_test():
         data = request.get_json(silent=True) or {}
         channel = data.get('channel', None)
 
-        # Call MainWindow's _on_start_test directly (handles all test logic)
-        _main_window._on_start_test()
+        # 通过Qt事件队列切回GUI主线程，避免Flask线程直接操作Qt/UI
+        from PyQt5.QtCore import QMetaObject, Qt
+        ok = QMetaObject.invokeMethod(_main_window, '_on_start_test', Qt.QueuedConnection)
+        if not ok:
+            raise RuntimeError('invokeMethod(_on_start_test) failed')
 
         update_state(is_testing=True)
         logger.info(f"Test started via remote API (channel={channel})")
@@ -130,8 +133,11 @@ def stop_test():
         if not api_state["is_testing"]:
             return jsonify({"success": False, "error": "No test running"})
 
-        # Call MainWindow's _on_stop_test directly
-        _main_window._on_stop_test()
+        # 通过Qt事件队列切回GUI主线程，避免Flask线程直接操作Qt/UI
+        from PyQt5.QtCore import QMetaObject, Qt
+        ok = QMetaObject.invokeMethod(_main_window, '_on_stop_test', Qt.QueuedConnection)
+        if not ok:
+            raise RuntimeError('invokeMethod(_on_stop_test) failed')
         update_state(is_testing=False)
         logger.info("Test stopped via remote API")
         return jsonify({"success": True, "message": "Test stopped"})
@@ -417,9 +423,16 @@ def connect_device():
         port = data.get('port', None)
         if port:
             result = device_mgr.reconnect_with_new_port(port)
+            connected_port = port if result else None
         else:
             result = device_mgr.auto_connect()
-        return jsonify({"success": True, "message": "Device connected", "data": result})
+            connected_port = getattr(device_mgr, 'current_port', None) if result else None
+
+        # 同步API状态，避免/status显示null导致误判
+        if result:
+            update_state(connected_device=connected_port or 'connected')
+
+        return jsonify({"success": True, "message": "Device connected", "data": result, "port": connected_port})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
