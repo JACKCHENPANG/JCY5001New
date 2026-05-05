@@ -110,11 +110,19 @@ def start_test():
         data = request.get_json(silent=True) or {}
         channel = data.get('channel', None)
 
-        # 通过Qt事件队列切回GUI主线程，避免Flask线程直接操作Qt/UI
-        from PyQt5.QtCore import QMetaObject, Qt
-        ok = QMetaObject.invokeMethod(_main_window, '_on_start_test', Qt.QueuedConnection)
-        if not ok:
-            raise RuntimeError('invokeMethod(_on_start_test) failed')
+        # 优先通过测试控制组件信号进入既有GUI启动链路；Qt会跨线程排队投递到主线程
+        control_widget = None
+        if hasattr(_main_window, 'ui_component_manager') and _main_window.ui_component_manager:
+            try:
+                control_widget = _main_window.ui_component_manager.get_component('test_control')
+            except Exception:
+                control_widget = None
+
+        if control_widget is not None and hasattr(control_widget, 'start_test'):
+            control_widget.start_test.emit()
+        else:
+            # 回退：直接调用主窗口入口（兼容旧结构）
+            _main_window._on_start_test()
 
         update_state(is_testing=True)
         logger.info(f"Test started via remote API (channel={channel})")
@@ -133,11 +141,19 @@ def stop_test():
         if not api_state["is_testing"]:
             return jsonify({"success": False, "error": "No test running"})
 
-        # 通过Qt事件队列切回GUI主线程，避免Flask线程直接操作Qt/UI
-        from PyQt5.QtCore import QMetaObject, Qt
-        ok = QMetaObject.invokeMethod(_main_window, '_on_stop_test', Qt.QueuedConnection)
-        if not ok:
-            raise RuntimeError('invokeMethod(_on_stop_test) failed')
+        # 优先通过测试控制组件信号进入既有GUI停止链路；Qt会跨线程排队投递到主线程
+        control_widget = None
+        if hasattr(_main_window, 'ui_component_manager') and _main_window.ui_component_manager:
+            try:
+                control_widget = _main_window.ui_component_manager.get_component('test_control')
+            except Exception:
+                control_widget = None
+
+        if control_widget is not None and hasattr(control_widget, 'stop_test'):
+            control_widget.stop_test.emit()
+        else:
+            # 回退：直接调用主窗口入口（兼容旧结构）
+            _main_window._on_stop_test()
         update_state(is_testing=False)
         logger.info("Test stopped via remote API")
         return jsonify({"success": True, "message": "Test stopped"})
