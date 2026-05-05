@@ -114,6 +114,7 @@ class SimultaneousTestExecutor:
 
                 for retry_index in range(max_retries):
                     logger.info(f"低频点{frequency}Hz - 尝试{retry_index + 1}/{max_retries}")
+                    stage_t0 = time.time()
 
                     # 修复在每个频点开始前检查停止事件
                     if self.stop_event and self.stop_event.is_set():
@@ -134,6 +135,7 @@ class SimultaneousTestExecutor:
                         return True, failed_frequencies
 
                     # 设置频率
+                    set_freq_t0 = time.time()
                     if not self.comm_manager.set_frequency_broadcast(frequency):
                         logger.error(f"第{retry_index + 1}次尝试：设置频率{frequency}Hz失败")
                         if retry_index < max_retries - 1:
@@ -145,12 +147,15 @@ class SimultaneousTestExecutor:
                             failed_frequencies.append(frequency)
                             break
 
+                    set_freq_elapsed = time.time() - set_freq_t0
+
                     # 修复启动测试前检查停止事件
                     if self.stop_event and self.stop_event.is_set():
                         logger.info("同时测试在启动测试前被用户停止")
                         return True, failed_frequencies
 
                     # 启动测试
+                    start_measure_t0 = time.time()
                     if not self.comm_manager.start_impedance_measurement_broadcast(enabled_channels):
                         logger.error(f"第{retry_index + 1}次尝试：启动频率{frequency}Hz测试失败")
                         if retry_index < max_retries - 1:
@@ -184,9 +189,14 @@ class SimultaneousTestExecutor:
                         logger.info("同时测试在读取数据前被用户停止")
                         return True, failed_frequencies
 
+                    monitor_elapsed = time.time() - start_measure_t0
+
                     # 等待数据寄存器稳定（在当前固件上0.15s已足够，减少低频总耗时）
+                    settle_t0 = time.time()
                     time.sleep(0.15)
+                    settle_elapsed = time.time() - settle_t0
                     # 读取数据
+                    read_t0 = time.time()
                     # 只重读不重测！测量已完成，数据在设备寄存器
                     _read_ok = False
                     for _rr in range(10):
@@ -203,6 +213,14 @@ class SimultaneousTestExecutor:
                     if self.stop_event and self.stop_event.is_set():
                         logger.info("同时测试在通知完成前被用户停止")
                         return True, failed_frequencies
+
+                    read_elapsed = time.time() - read_t0
+                    total_stage_elapsed = time.time() - stage_t0
+                    logger.info(
+                        f"[TIMING][LF] freq={frequency} attempt={retry_index + 1} "
+                        f"set_freq={set_freq_elapsed:.3f}s monitor_plus_start={monitor_elapsed:.3f}s "
+                        f"settle={settle_elapsed:.3f}s read_verify={read_elapsed:.3f}s total={total_stage_elapsed:.3f}s"
+                    )
 
                     # 成功完成，退出重试循环
                     frequency_success = True

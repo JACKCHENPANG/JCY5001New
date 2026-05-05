@@ -163,6 +163,7 @@ class StaggeredTestExecutor:
 
             for retry_index in range(max_retries):
                 logger.info(f"第{round_index + 1}轮错频测试 - 尝试{retry_index + 1}/{max_retries}")
+                stage_t0 = time.time()
 
                 # 2. 设置各通道频点
                 self.state = StaggeredTestState.SETTING_FREQUENCIES
@@ -176,6 +177,8 @@ class StaggeredTestExecutor:
                     else:
                         logger.error(f"第{round_index + 1}轮错频测试：设置频点失败（已重试{max_retries}次）")
                         return False
+
+                set_freq_elapsed = time.time() - stage_t0
 
                 # 修复在通知频率前检查停止事件
                 if self.stop_event and self.stop_event.is_set():
@@ -196,6 +199,7 @@ class StaggeredTestExecutor:
                     logger.debug("首轮错频预热延迟0.5s完成")
 
                 # 3. 同时启动所有通道
+                start_measure_t0 = time.time()
                 self.state = StaggeredTestState.STARTING_MEASUREMENT
                 if not self.comm_manager.start_impedance_measurement_broadcast(enabled_channels):
                     logger.error(f"第{retry_index + 1}次尝试：启动错频测量失败")
@@ -225,8 +229,12 @@ class StaggeredTestExecutor:
                         logger.error(f"第{round_index + 1}轮错频测试：监控超时（已重试{max_retries}次）")
                         return False
 
+                monitor_elapsed = time.time() - start_measure_t0
+
                 # 监控完成→数据寄存器稳定延迟（防止读到旧数据）
+                settle_t0 = time.time()
                 time.sleep(0.4)
+                settle_elapsed = time.time() - settle_t0
 
                 # 修复在读取数据前检查停止事件
                 if self.stop_event and self.stop_event.is_set():
@@ -234,6 +242,7 @@ class StaggeredTestExecutor:
                     raise UserStoppedException(f"第{round_index + 1}轮错频测试在读取数据前被用户停止")
 
                 # 5. 读取阻抗数据（带二次验证）
+                read_t0 = time.time()
                 self.state = StaggeredTestState.READING_DATA
                 # 只重读不重测！测量已完成，数据在设备寄存器
                 _read_ok = False
@@ -248,6 +257,14 @@ class StaggeredTestExecutor:
                 if not _read_ok:
                     logger.error(f"第{round_index + 1}轮错频：10次读取全部失败")
                     return False
+
+                read_elapsed = time.time() - read_t0
+                total_stage_elapsed = time.time() - stage_t0
+                logger.info(
+                    f"[TIMING][HF] round={round_index + 1} attempt={retry_index + 1} "
+                    f"set_freq={set_freq_elapsed:.3f}s monitor_plus_start={monitor_elapsed:.3f}s "
+                    f"settle={settle_elapsed:.3f}s read_verify={read_elapsed:.3f}s total={total_stage_elapsed:.3f}s"
+                )
 
                 # 成功完成，退出重试循环
                 round_success = True
