@@ -123,6 +123,10 @@ def setup_application():
     """设置应用程序基本属性"""
     app = QApplication(sys.argv)
 
+    # 关键修复：主窗口意外关闭/隐藏时，不要让 Qt 自动带退整个进程。
+    # 5000 远程 API 依赖主进程常驻，后续可由窗口监控或远程逻辑自行恢复窗口。
+    app.setQuitOnLastWindowClosed(False)
+
     # 设置应用程序基本信息
     app.setApplicationName("JCY5001AS鲸测云8路EIS阻抗筛选仪")
     app.setApplicationVersion("V0.92.42")
