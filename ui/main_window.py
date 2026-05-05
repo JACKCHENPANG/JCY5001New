@@ -582,6 +582,9 @@ class MainWindow(QMainWindow):
     def _try_auto_connect(self):
         """尝试自动连接设备"""
         try:
+            if self.device_connection_manager.get_connection_status():
+                logger.info("设备已在启动阶段连接，跳过二次自动连接")
+                return
             self.device_connection_manager.auto_connect()
         except Exception as e:
             logger.error(f"自动连接设备失败: {e}")
