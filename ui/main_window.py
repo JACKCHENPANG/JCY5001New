@@ -4284,6 +4284,19 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """窗口关闭事件"""
         try:
+            # 远程验收阶段要求主进程/API常驻，禁止意外关闭窗口把整个应用带退。
+            # 真正需要退出时，再走显式退出路径并设置 _allow_close=True。
+            if not getattr(self, '_allow_close', False):
+                logger.warning("⚠️ 拦截窗口关闭事件，保持主进程常驻")
+                event.ignore()
+                try:
+                    self.showMaximized()
+                    self.raise_()
+                    self.activateWindow()
+                except Exception:
+                    pass
+                return
+
             # 设置关闭标志，停止窗口状态监控
             self._is_closing = True
             if hasattr(self, 'window_monitor_timer'):
@@ -4304,7 +4317,7 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             logger.error(f"关闭窗口失败: {e}")
-            event.accept()
+            event.ignore()
 
     def _cleanup_resources(self):
         """清理资源"""

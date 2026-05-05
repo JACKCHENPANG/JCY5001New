@@ -73,11 +73,26 @@
     "multi_freq": {
       "preset": "磷酸铁锂",
       "custom_list": [
-        0.119,
-        1,
-        10,
-        100,
-        1000
+        1007.083,
+        625.612,
+        389.1,
+        242.234,
+        150.681,
+        93.46,
+        57.221,
+        36.24,
+        22.888,
+        13.351,
+        11.444,
+        9.537,
+        7.629,
+        5.722,
+        3.815,
+        1.907,
+        0.954,
+        0.477,
+        0.238,
+        0.119
       ],
       "min_freq": 0.01,
       "max_freq": 7800,
@@ -97,7 +112,6 @@
       1,
       2,
       3,
-      4,
       5,
       6,
       7,
@@ -130,7 +144,7 @@
     "max_count": 100
   },
   "battery_detection": {
-    "enabled": true,
+    "enabled": false,
     "voltage_threshold_remove": 5.0,
     "voltage_threshold_min": 2.0,
     "voltage_threshold_max": 5.0,
@@ -222,6 +236,12 @@
     "contrast": "high"
   },
   "label_print": {
+    "auto_print": true,
+    "print_pass_only": false,
+    "copies": 1,
+    "quality": "高质量",
+    "font_enhancement": true,
+    "bold_enhancement": true,
     "code_type": "qr",
     "enabled": false
   },
@@ -305,14 +325,14 @@
     "copies": 1
   },
   "test_count": {
-    "channel_1": 14,
-    "channel_2": 14,
-    "channel_3": 14,
+    "channel_1": 15,
+    "channel_2": 15,
+    "channel_3": 15,
     "channel_4": 10,
-    "channel_5": 14,
-    "channel_6": 14,
-    "channel_7": 4,
-    "channel_8": 4
+    "channel_5": 15,
+    "channel_6": 15,
+    "channel_7": 5,
+    "channel_8": 5
   },
   "version": "V0.92.57",
   "battery_range": "1mΩ以下",
@@ -320,7 +340,6 @@
     1,
     2,
     3,
-    4,
     5,
     6,
     7,
