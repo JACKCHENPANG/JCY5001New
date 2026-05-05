@@ -48,3 +48,5 @@
 - 修复频点进度显示：添加 update_frequency_info 方法到 ChannelDisplayWidget
 - 电压显示确认正常（电池侦测后台运行）
 - 操作者：hluffy/luffy
+
+| V0.92.57 | AS55 | 2026-05-04 | luffy (远程) | ✅ | 修复编译版API不可用：flask从excludes移除 |

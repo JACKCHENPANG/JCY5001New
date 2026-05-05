@@ -8,7 +8,7 @@ extra_datas = collect_data_files('matplotlib.backends')
 extra_hidden = collect_submodules('matplotlib.backends')
 # ===== 编译配置 =====
 # 构建号：每次发布+1
-BUILD_NUMBER = "54"
+BUILD_NUMBER = "55"
 
 a = Analysis(
     ['main.py'],
@@ -37,16 +37,22 @@ a = Analysis(
         'matplotlib',
         'matplotlib.backends.backend_qt5agg',
         'cryptography',
-        'flask',
+        
         'mcp',
-        'click',
+        
         'pydantic',
-        'itsdangerous',
+        
         'annotated_types',
         'remote_api',
         'jcy5001_mcp_server',
         'startup_resource_check',
-    ] + extra_hidden,
+        'flask',
+        'werkzeug',
+        'jinja2',
+        'markupsafe',
+        'click',
+        'itsdangerous',
+        'blinker'] + extra_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

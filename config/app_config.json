@@ -38,7 +38,7 @@
     "test_mode": "staggered",
     "gain": "auto",
     "average_times": 1,
-    "battery_range": "10mΩ以下",
+    "battery_range": "1mΩ以下",
     "resistance_range": "10R",
     "voltage_range": {
       "min": 3.05,
@@ -99,7 +99,9 @@
       3,
       4,
       5,
-      6
+      6,
+      7,
+      8
     ],
     "battery_coding": {
       "mode": "scan",
@@ -220,12 +222,8 @@
     "contrast": "high"
   },
   "label_print": {
-    "auto_print": true,
-    "print_pass_only": false,
-    "copies": 1,
-    "quality": "高质量",
-    "font_enhancement": true,
-    "bold_enhancement": true
+    "code_type": "qr",
+    "enabled": false
   },
   "logging": {
     "enable_system_log": true,
@@ -260,7 +258,7 @@
     "battery_spec": "21700",
     "batch_number": "BATCH-20260504-001",
     "operator": "未设置1",
-    "production_date": "周一 5月 4 2026",
+    "production_date": "周二 5月 5 2026",
     "remarks": "",
     "battery_type": "磷酸铁锂",
     "standard_voltage": 3.2,
@@ -307,12 +305,97 @@
     "copies": 1
   },
   "test_count": {
-    "channel_1": 8,
-    "channel_2": 8,
-    "channel_3": 8,
-    "channel_4": 8,
-    "channel_5": 8,
-    "channel_6": 8
+    "channel_1": 14,
+    "channel_2": 14,
+    "channel_3": 14,
+    "channel_4": 10,
+    "channel_5": 14,
+    "channel_6": 14,
+    "channel_7": 4,
+    "channel_8": 4
   },
-  "version": "V0.92.57"
+  "version": "V0.92.57",
+  "battery_range": "1mΩ以下",
+  "enabled_channels": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "list": [
+    1007.083,
+    625.612,
+    389.1,
+    242.234,
+    150.681,
+    93.46,
+    57.221,
+    36.24,
+    22.888,
+    13.351,
+    11.444,
+    9.537,
+    7.629,
+    5.722,
+    3.815,
+    1.907,
+    0.954,
+    0.477,
+    0.238,
+    0.119
+  ],
+  "test_mode": "staggered",
+  "use_parallel_staggered_mode": true,
+  "critical_frequency": 10.0,
+  "auto_detect": false,
+  "battery_coding": {
+    "auto_rule": "BATCH_{batch}_{index:04d}",
+    "expected_length": 12,
+    "length_check": true,
+    "mode": "scan"
+  },
+  "continuous_mode": false,
+  "continuous_mode_delay": 2.0,
+  "count_limit_enabled": false,
+  "data_optimization": true,
+  "frequency_range": {
+    "end": 0.01,
+    "points": 20,
+    "start": 7800
+  },
+  "interval": 2,
+  "max_count": 100,
+  "mode": "multi",
+  "optimization_delay": 0.5,
+  "retry_count": 2,
+  "sampling_count": 30,
+  "sampling_test": false,
+  "timeout": 60,
+  "frequency_order": "high_to_low",
+  "multi_freq": {
+    "custom_list": [
+      0.119,
+      1,
+      10,
+      100,
+      1000
+    ],
+    "distribution": "log",
+    "max_freq": 7800,
+    "min_freq": 0.01,
+    "points": 20,
+    "preset": "磷酸铁锂"
+  },
+  "preset_mode": "研究模式",
+  "average_times": 1,
+  "gain": "auto",
+  "resistance_range": "10R",
+  "voltage_range": {
+    "max": 3.37,
+    "min": 3.05
+  }
 }

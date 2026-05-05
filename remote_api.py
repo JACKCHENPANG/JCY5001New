@@ -51,7 +51,11 @@ def update_state(**kwargs):
 
 def get_state():
     """获取当前状态"""
-    return api_state.copy()
+    state = api_state.copy()
+    # 同步主窗口的实际测试状态
+    if _main_window is not None and hasattr(_main_window, 'is_testing'):
+        state['is_testing'] = _main_window.is_testing
+    return state
 
 def _get_manager(name):
     """通过main_window获取管理器实例"""

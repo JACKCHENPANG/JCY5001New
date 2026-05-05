@@ -228,7 +228,7 @@ class SimultaneousTestExecutor:
             是否所有通道都完成测试
         """
         try:
-            timeout = 60.0  # 增加超时时间到60秒，给低频点更多完成时间
+            timeout = 60.0  # 超时20秒，低频点测量在PC端有重试兜底
             start_time = time.time()
             completed_channels = set()
 
@@ -315,7 +315,7 @@ class SimultaneousTestExecutor:
         try:
             logger.debug(f"读取同时测试数据: {frequency}Hz")
 
-            max_retries = 3  # 最多重试3次
+            max_retries = 3  # 低频点只试1次，快速失败
             read_success = False
 
             for retry_index in range(max_retries):

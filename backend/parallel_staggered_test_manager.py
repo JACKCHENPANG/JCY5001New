@@ -327,6 +327,11 @@ class ParallelStaggeredTestManagerSimplified:
                     # 记录低频测试失败，但继续执行后续步骤（合并结果等）
                     logger.warning(f"⚠️ 低频点测试有失败频点，但继续执行结果合并")
 
+            # 检查全局超时（120秒），超时直接标记完成
+            total_elapsed = time.time() - self.start_time
+            if total_elapsed > 120:
+                logger.warning(f"测试全局超时({total_elapsed:.1f}s>120s)，强制完成")
+
             # 5. 合并所有测试结果
             self.data_collector.combine_all_results(config.enabled_channels)
 

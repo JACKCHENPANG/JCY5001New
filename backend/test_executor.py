@@ -573,12 +573,17 @@ class TestExecutor:
 
             if success:
                 # 等待测试完成
-                while staggered_manager.get_test_state() != ParallelStaggeredTestState.COMPLETED and not self.stop_event.is_set():
+                wait_start = time.time()
+                while staggered_manager.get_test_state() != ParallelStaggeredTestState.COMPLETED and not self.stop_event.is_set() and (time.time() - wait_start) < 180:
                     if staggered_manager.get_test_state() == ParallelStaggeredTestState.ERROR:
                         logger.error("并行错频测试出现错误")
                         break
                     time.sleep(0.1)
 
+                # 检查超时
+                if (time.time() - wait_start) >= 180:
+                    logger.warning("测试超时180s，强制标记完成")
+                    staggered_manager._set_state(ParallelStaggeredTestState.COMPLETED)
                 # 检查停止标志
                 if self.stop_event.is_set():
                     logger.warning("⚠️ 并行错频测试检测到停止标志，不保存数据")

@@ -1,4 +1,4 @@
-('D:\\JCY5001_Clean\\JCY5001AS_Clean_Source\\build\\JCY5001AS_release\\JCY5001AS52.pkg',
+('D:\\JCY5001_Clean\\JCY5001AS_Clean_Source\\build\\JCY5001AS_release\\JCY5001AS55.pkg',
  {'BINARY': True,
   'DATA': True,
   'EXECUTABLE': True,
