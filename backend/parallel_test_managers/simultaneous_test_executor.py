@@ -137,8 +137,8 @@ class SimultaneousTestExecutor:
                     if not self.comm_manager.set_frequency_broadcast(frequency):
                         logger.error(f"第{retry_index + 1}次尝试：设置频率{frequency}Hz失败")
                         if retry_index < max_retries - 1:
-                            logger.info(f"等待0.5秒后重试...")
-                            time.sleep(0.5)
+                            logger.info(f"等待0.2秒后重试...")
+                            time.sleep(0.2)
                             continue
                         else:
                             logger.error(f"频率{frequency}Hz设置失败（已重试{max_retries}次）")
@@ -154,8 +154,8 @@ class SimultaneousTestExecutor:
                     if not self.comm_manager.start_impedance_measurement_broadcast(enabled_channels):
                         logger.error(f"第{retry_index + 1}次尝试：启动频率{frequency}Hz测试失败")
                         if retry_index < max_retries - 1:
-                            logger.info(f"等待0.5秒后重试...")
-                            time.sleep(0.5)
+                            logger.info(f"等待0.2秒后重试...")
+                            time.sleep(0.2)
                             continue
                         else:
                             logger.error(f"频率{frequency}Hz启动测试失败（已重试{max_retries}次）")
@@ -171,8 +171,8 @@ class SimultaneousTestExecutor:
                     if not self._monitor_simultaneous_completion(enabled_channels, config):
                         logger.error(f"第{retry_index + 1}次尝试：频率{frequency}Hz测试超时")
                         if retry_index < max_retries - 1:
-                            logger.info(f"等待0.5秒后重试...")
-                            time.sleep(0.5)
+                            logger.info(f"等待0.2秒后重试...")
+                            time.sleep(0.2)
                             continue
                         else:
                             logger.error(f"频率{frequency}Hz测试超时（已重试{max_retries}次）")
@@ -184,8 +184,8 @@ class SimultaneousTestExecutor:
                         logger.info("同时测试在读取数据前被用户停止")
                         return True, failed_frequencies
 
-                    # 等待数据寄存器稳定（固件状态滞后于数据写入，0.3s settling）
-                    time.sleep(0.3)
+                    # 等待数据寄存器稳定（在当前固件上0.15s已足够，减少低频总耗时）
+                    time.sleep(0.15)
                     # 读取数据
                     # 只重读不重测！测量已完成，数据在设备寄存器
                     _read_ok = False
@@ -193,7 +193,7 @@ class SimultaneousTestExecutor:
                         if self._read_simultaneous_data(frequency, enabled_channels):
                             _read_ok = True
                             break
-                        time.sleep(0.15)  # 增加等待时间，让数据寄存器充分更新
+                        time.sleep(0.08)  # 缩短重读等待，降低低频尾部耗时
                     if not _read_ok:
                         logger.error(f"频率{frequency}Hz数据读取失败（10次内部重试）")
                         failed_frequencies.append(frequency)
@@ -384,8 +384,8 @@ class SimultaneousTestExecutor:
                         logger.error(f"频率{frequency}Hz所有通道数据无效（已重试{max_retries}次）")
                         return False
 
-                # 二次读取验证：防止读到设备未刷新的旧数据
-                time.sleep(0.1)
+                # 二次读取验证：保留验证但缩短等待
+                time.sleep(0.05)
                 verify_data = self.comm_manager.read_impedance_data_broadcast()
                 if verify_data and isinstance(verify_data, dict):
                     for ch_idx in enabled_channels:
