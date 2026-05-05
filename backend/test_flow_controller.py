@@ -646,8 +646,8 @@ class TestFlowController:
 
             if hasattr(self, 'test_result_manager'):
                 try:
-                    self.test_result_manager.clear_test_data()
-                    logger.debug("测试结果管理器已清理")
+                    self.test_result_manager.clear_test_data(preserve_batch_context=True)
+                    logger.debug("测试结果管理器已清理（保留批次上下文）")
                 except Exception as e:
                     logger.error(f"清理测试结果管理器失败: {e}")
 

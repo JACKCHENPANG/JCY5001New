@@ -2081,10 +2081,10 @@ class TestResultManager:
             logger.error(f"确保批次存在失败: {e}")
             return 1  # 返回默认批次ID
 
-    def clear_test_data(self):
+    def clear_test_data(self, preserve_batch_context: bool = False):
         """清理测试数据，防止数据覆盖"""
         try:
-            logger.info("🧹 开始清理测试数据...")
+            logger.info(f"🧹 开始清理测试数据... preserve_batch_context={preserve_batch_context}")
 
             # 1. 清空测试时间记录
             self.test_start_times.clear()
@@ -2092,9 +2092,12 @@ class TestResultManager:
             logger.info("✅ 测试时间记录已清空")
 
             # 2. 重置批次相关信息
-            self.current_batch_id = None
-            self.batch_info.clear()
-            logger.info("✅ 批次信息已重置")
+            if preserve_batch_context:
+                logger.info(f"✅ 保留批次上下文: batch_id={self.current_batch_id}")
+            else:
+                self.current_batch_id = None
+                self.batch_info.clear()
+                logger.info("✅ 批次信息已重置")
 
             # 3. 清空电池码信息
             self.battery_codes.clear()
