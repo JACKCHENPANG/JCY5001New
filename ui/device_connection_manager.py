@@ -239,6 +239,10 @@ class DeviceConnectionManager(QObject):
             是否启动自动连接
         """
         try:
+            if self.get_connection_status():
+                logger.info("设备已连接，跳过自动连接调度")
+                return True
+
             # 检查是否启用自动连接
             auto_connect_enabled = self.config_manager.get('device.auto_connect', True)
 
@@ -266,6 +270,10 @@ class DeviceConnectionManager(QObject):
     def _safe_auto_connect(self):
         """安全的自动连接启动方法"""
         try:
+            if self.get_connection_status():
+                logger.info("设备已连接，跳过安全自动连接流程")
+                return
+
             logger.info("开始安全自动连接流程...")
 
             # 检查UI是否已经完全加载
@@ -283,6 +291,12 @@ class DeviceConnectionManager(QObject):
     def _perform_auto_connect(self):
         """执行实际的自动连接（安全版本，带超时机制和重试限制）"""
         try:
+            if self.get_connection_status():
+                logger.info("设备已连接，跳过实际自动连接执行")
+                self._is_connecting = False
+                self._auto_connect_retry_count = 0
+                return
+
             # 检查是否已经在连接中
             if self._is_connecting:
                 logger.warning("自动连接已在进行中，跳过重复连接")
