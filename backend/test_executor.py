@@ -478,14 +478,14 @@ class TestExecutor:
             use_staggered_mode = True  # 强制错频模式，同时测试已禁用
             critical_frequency = test_config.get('critical_frequency', 10.0)
 
-            print(f"🔍 [测试执行器] 并行错频模式检查: use_staggered_mode={use_staggered_mode}, critical_frequency={critical_frequency}")
+            logger.info(f"[测试执行器] 并行错频模式检查: use_staggered_mode={use_staggered_mode}, critical_frequency={critical_frequency}")
 
             if use_staggered_mode:
-                print(f"🎯 [测试执行器] 选择并行错频测试路径")
+                logger.info("[测试执行器] 选择并行错频测试路径")
                 logger.info(f"🔄 启用并行错频模式，临界频率: {critical_frequency}Hz")
                 return self._execute_parallel_staggered_test(frequencies, enabled_channel_indices, test_config)
             else:
-                print(f"🔄 [测试执行器] 选择传统同时启动测试路径")
+                logger.info("[测试执行器] 选择传统同时启动测试路径")
                 logger.info("🚀 使用传统同时启动模式")
                 return self._execute_traditional_test(frequencies, enabled_channel_indices, test_config)
 
@@ -569,7 +569,7 @@ class TestExecutor:
 
             # 启动并行错频测试
             success = staggered_manager.start_test(staggered_config)
-            print(f"🚀 [测试执行器] start_parallel_staggered_test返回: {success}")
+            logger.info(f"[测试执行器] start_parallel_staggered_test返回: {success}")
 
             if success:
                 # 等待测试完成
