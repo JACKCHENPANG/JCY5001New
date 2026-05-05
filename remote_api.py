@@ -104,7 +104,8 @@ def start_test():
     try:
         if _main_window is None:
             return jsonify({"success": False, "error": "MainWindow not available"})
-        if api_state["is_testing"]:
+        current_state = get_state()
+        if current_state.get("is_testing"):
             return jsonify({"success": False, "error": "Test already running"})
 
         data = request.get_json(silent=True) or {}
@@ -138,7 +139,8 @@ def stop_test():
     try:
         if _main_window is None:
             return jsonify({"success": False, "error": "MainWindow not available"})
-        if not api_state["is_testing"]:
+        current_state = get_state()
+        if not current_state.get("is_testing"):
             return jsonify({"success": False, "error": "No test running"})
 
         # 优先通过测试控制组件信号进入既有GUI停止链路；Qt会跨线程排队投递到主线程
