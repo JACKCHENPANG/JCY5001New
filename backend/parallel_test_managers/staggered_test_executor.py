@@ -461,35 +461,40 @@ class StaggeredTestExecutor:
                         'phase': 0.0  # 可以后续计算
                     }
 
-                    # 陈旧数据检测：与已有数据对比，防止读到未刷新的旧值
+                    # 陈旧数据检测：仅与同一通道最近一次结果对比，避免把不同频点的正常接近值误判为旧数据
                     new_r = channel_raw_data['real']
                     new_i = channel_raw_data['imag']
                     stale = False
-                    for fk in self.test_results:
-                        for ck in self.test_results[fk]:
-                            p = self.test_results[fk][ck]
+                    last_point = None
+                    for fk in sorted(self.test_results.keys(), reverse=True):
+                        if channel_index in self.test_results[fk]:
+                            p = self.test_results[fk][channel_index]
                             if isinstance(p, dict):
-                                pr = p.get('real_impedance', 0)
-                                pi = p.get('imaginary_impedance', 0)
-                                if abs(new_r - pr) < 0.5 and abs(new_i - pi) < 0.5:
-                                    stale = True
-                                    break
-                        if stale: break
+                                last_point = p
+                                break
+
+                    if last_point is not None:
+                        pr = last_point.get('real_impedance', 0)
+                        pi = last_point.get('imaginary_impedance', 0)
+                        if abs(new_r - pr) < 0.5 and abs(new_i - pi) < 0.5:
+                            stale = True
+
                     if stale:
-                        logger.warning(f"通道{channel_index+1}频点{frequency}Hz数据陈旧，等0.5s后重读")
-                        time.sleep(0.5)
+                        logger.warning(f"通道{channel_index+1}频点{frequency}Hz数据疑似陈旧，等0.2s后重读")
+                        time.sleep(0.2)
                         # 重新读取（不重测！等数据寄存器刷新）
                         retry_data = self.comm_manager.read_impedance_data_broadcast()
                         if retry_data and channel_index in retry_data:
                             rd = retry_data[channel_index]
-                            if isinstance(rd, dict) and 'real' in rd:
+                            if isinstance(rd, dict) and 'real' in rd and 'imag' in rd:
                                 if abs(rd['real'] - new_r) > 1.0 or abs(rd['imag'] - new_i) > 1.0:
                                     logger.info(f"通道{channel_index+1}重读数据已更新")
                                     channel_raw_data.update({'real': rd['real'], 'imag': rd['imag']})
                                     channel_data = {'real_impedance': rd['real'], 'imaginary_impedance': rd['imag'], 'magnitude': (rd['real']**2+rd['imag']**2)**0.5, 'phase': 0.0}
                                 else:
-                                    logger.warning(f"通道{channel_index+1}重读仍相同，使用原值")
-                        return False  # 返回False触发外层重试
+                                    logger.warning(f"通道{channel_index+1}重读仍相同，接受稳定值")
+                        else:
+                            logger.warning(f"通道{channel_index+1}重读失败，接受首次读数")
 
                     # 初始化频率结果字典
                     if frequency not in self.test_results:
