@@ -466,6 +466,69 @@ def disconnect_device():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
+
+@app.route('/battery_detection/stop', methods=['POST'])
+def stop_battery_detection():
+    """停止电池检测线程，并可选禁用配置"""
+    if _main_window is None:
+        return jsonify({"success": False, "error": "MainWindow not available"})
+    try:
+        data = request.get_json(silent=True) or {}
+        disable = bool(data.get('disable', False))
+
+        mgr = getattr(_main_window, 'battery_detection_manager', None)
+        if mgr is not None:
+            mgr.stop_detection()
+
+        if disable and hasattr(_main_window, 'config_manager') and _main_window.config_manager:
+            try:
+                _main_window.config_manager.set('battery_detection.enabled', False)
+                if hasattr(_main_window.config_manager, 'save_config'):
+                    _main_window.config_manager.save_config()
+            except Exception as cfg_e:
+                logger.warning(f"Disable battery detection config failed: {cfg_e}")
+
+        if hasattr(_main_window, '_battery_detection_active'):
+            _main_window._battery_detection_active = False
+
+        logger.info(f"Battery detection stopped via API (disable={disable})")
+        return jsonify({"success": True, "message": "Battery detection stopped", "disabled": disable})
+    except Exception as e:
+        logger.error(f"Failed to stop battery detection via API: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/battery_detection/start', methods=['POST'])
+def start_battery_detection():
+    """启动电池检测线程，并可选启用配置"""
+    if _main_window is None:
+        return jsonify({"success": False, "error": "MainWindow not available"})
+    try:
+        data = request.get_json(silent=True) or {}
+        enable = bool(data.get('enable', False))
+        channels = data.get('channels', None)
+
+        if enable and hasattr(_main_window, 'config_manager') and _main_window.config_manager:
+            try:
+                _main_window.config_manager.set('battery_detection.enabled', True)
+                if hasattr(_main_window.config_manager, 'save_config'):
+                    _main_window.config_manager.save_config()
+            except Exception as cfg_e:
+                logger.warning(f"Enable battery detection config failed: {cfg_e}")
+
+        mgr = getattr(_main_window, 'battery_detection_manager', None)
+        if mgr is None:
+            return jsonify({"success": False, "error": "battery_detection_manager not available"})
+
+        mgr.start_detection(channels)
+        if hasattr(_main_window, '_battery_detection_active'):
+            _main_window._battery_detection_active = True
+
+        logger.info(f"Battery detection started via API (enable={enable}, channels={channels})")
+        return jsonify({"success": True, "message": "Battery detection started", "enabled": enable, "channels": channels})
+    except Exception as e:
+        logger.error(f"Failed to start battery detection via API: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
 # ============ 服务器管理 ============
 
 @app.route('/shutdown', methods=['POST'])
