@@ -413,7 +413,7 @@ class GradeSettingsWidget(QWidget):
                                                                self.config_manager.get('impedance.rs_min', 0.5))
                 rs_config['max_value'] = self.config_manager.get('grade_settings.rs_max',
                                                                self.config_manager.get('impedance.rs_grade3_max', 50.0))
-                rs_config['auto_calc'] = True  # 默认自动计算
+                rs_config['auto_calc'] = self.config_manager.get('grade_settings.rs_auto_calc', True)  # 从配置读取
                 rs_config['grade1_max'] = self.config_manager.get('impedance.rs_grade1_max', 17.0)
                 rs_config['grade2_max'] = self.config_manager.get('impedance.rs_grade2_max', 33.5)
                 rs_config['grade3_max'] = self.config_manager.get('impedance.rs_grade3_max', 50.0)
@@ -426,7 +426,7 @@ class GradeSettingsWidget(QWidget):
                                                                 self.config_manager.get('impedance.rct_min', 5.0))
                 rct_config['max_value'] = self.config_manager.get('grade_settings.rct_max',
                                                                 self.config_manager.get('impedance.rct_grade3_max', 100.0))
-                rct_config['auto_calc'] = True  # 默认自动计算
+                rct_config['auto_calc'] = self.config_manager.get('grade_settings.rct_auto_calc', True)  # 从配置读取
                 rct_config['grade1_max'] = self.config_manager.get('impedance.rct_grade1_max', 35.0)
                 rct_config['grade2_max'] = self.config_manager.get('impedance.rct_grade2_max', 70.0)
                 rct_config['grade3_max'] = self.config_manager.get('impedance.rct_grade3_max', 100.0)
