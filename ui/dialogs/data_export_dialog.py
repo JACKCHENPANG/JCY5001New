@@ -609,6 +609,27 @@ class DataExportDialog(QDialog):
         """)
         layout.addWidget(self.export_selected_button)
 
+        # 生成判定范围按钮
+        self.generate_grade_button = QPushButton("生成判定范围")
+        self.generate_grade_button.setMinimumHeight(35)
+        self.generate_grade_button.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+            QPushButton:pressed {
+                background-color: #6A1B9A;
+            }
+        """)
+        layout.addWidget(self.generate_grade_button)
+
         # 连续测试报告按钮
         self.continuous_report_button = QPushButton("连续测试报告")
         self.continuous_report_button.setMinimumHeight(35)
@@ -697,6 +718,9 @@ class DataExportDialog(QDialog):
 
         # 新增导出选中数据
         self.export_selected_button.clicked.connect(self._export_selected_data)
+
+        # 生成判定范围相关
+        self.generate_grade_button.clicked.connect(self._generate_grade_range_from_selection)
 
         # 连续测试报告相关
         self.continuous_report_button.clicked.connect(self._show_continuous_test_report)
@@ -1619,13 +1643,19 @@ class DataExportDialog(QDialog):
         self.plot_manager.clear_plot()
 
     def _get_selected_data(self) -> List[Dict]:
-        """获取选中的数据"""
+        """获取选中的数据（支持多行选中+复选框）"""
         selected_data = []
         selected_rows = set()
 
-        # 获取选中的行
+        # 方式1：通过鼠标选中的行
         for item in self.data_table.selectedItems():
             selected_rows.add(item.row())
+
+        # 方式2：通过复选框勾选的行
+        for row in range(self.data_table.rowCount()):
+            checkbox = self.data_table.cellWidget(row, 0)
+            if checkbox and hasattr(checkbox, 'isChecked') and checkbox.isChecked():
+                selected_rows.add(row)
 
         # 根据选中的行获取对应的数据
         for row in selected_rows:
@@ -1691,6 +1721,112 @@ class DataExportDialog(QDialog):
 
         # 开始导出选中数据
         self._start_export(file_path, export_format, selected_data)
+
+    def _generate_grade_range_from_selection(self):
+        """从选中的测试数据生成判定范围并保存到配置"""
+        selected_data = self._get_selected_data()
+        if not selected_data:
+            QMessageBox.warning(self, "警告", "请先选择测试数据！")
+            return
+
+        # 只使用合格样本计算范围
+        pass_samples = [d for d in selected_data if d.get('is_pass') == True]
+        working = pass_samples if len(pass_samples) >= 3 else selected_data
+
+        if len(working) < 1:
+            QMessageBox.warning(self, "警告", "选中数据不足，无法生成判定范围！")
+            return
+
+        voltage_vals = [d['voltage'] for d in working if d.get('voltage') is not None and isinstance(d.get('voltage'), (int, float))]
+        rs_vals = [d['rs_value'] for d in working if d.get('rs_value') is not None and isinstance(d.get('rs_value'), (int, float))]
+        rct_vals = [d['rct_value'] for d in working if d.get('rct_value') is not None and isinstance(d.get('rct_value'), (int, float))]
+
+        if not rs_vals or not rct_vals:
+            QMessageBox.warning(self, "警告", "选中数据缺少Rs或Rct值，无法生成判定范围！")
+            return
+
+        # 计算范围（带5%边距）
+        def pad_range(vals, ratio=0.05):
+            mn, mx = min(vals), max(vals)
+            span = mx - mn
+            pad = span * ratio if span > 0 else abs(mn) * ratio
+            return max(0, mn - pad), mx + pad
+
+        v_min, v_max = pad_range(voltage_vals, 0.02) if voltage_vals else (0, 0)
+        rs_min, rs_max = pad_range(rs_vals, 0.05)
+        rct_min, rct_max = pad_range(rct_vals, 0.05)
+
+        # 当前Rs档位数
+        rs_grade_count = int(self.config_manager.get('impedance.rs_grade_count', 3))
+        rs_grade_count = max(1, min(3, rs_grade_count))
+
+        # 档位分隔
+        def split_range(mn, mx, count):
+            if count <= 1 or mn >= mx:
+                return [(mn, mx)]
+            step = (mx - mn) / count
+            return [(mn + i * step, mn + (i + 1) * step) for i in range(count)]
+
+        rs_ranges = split_range(rs_min, rs_max, rs_grade_count)
+        rct_ranges = split_range(rct_min, rct_max, 3)
+
+        detail_lines = []
+        detail_lines.append(f"电压: {v_min:.3f}V ~ {v_max:.3f}V")
+        detail_lines.append(f"Rs: {rs_min:.3f}mΩ ~ {rs_max:.3f}mΩ ({rs_grade_count}档)")
+        for i, (lo, hi) in enumerate(rs_ranges):
+            detail_lines.append(f"  Rs档{i+1}: {lo:.3f} ~ {hi:.3f} mΩ")
+        detail_lines.append(f"Rct: {rct_min:.3f}mΩ ~ {rct_max:.3f}mΩ (3档)")
+        for i, (lo, hi) in enumerate(rct_ranges):
+            detail_lines.append(f"  Rct档{i+1}: {lo:.3f} ~ {hi:.3f} mΩ")
+
+        detail_text = "\n".join(detail_lines)
+        sample_info = f"样本数: {len(working)} (合格: {len(pass_samples)})"
+        if len(working) < 3:
+            sample_info += "\n\n提示: 建议选择3个以上合格样本，覆盖不同档位，结果更准确。"
+
+        reply = QMessageBox.question(
+            self, "确认判定范围",
+            f"将从当前选中的数据生成判定范围并保存到配置：\n\n{sample_info}\n\n{detail_text}\n\n确定要保存吗？",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        # 保存到配置
+        updates = {
+            'grade_settings.voltage_min': round(v_min, 4),
+            'grade_settings.voltage_max': round(v_max, 4),
+            'grade_settings.min_voltage': round(v_min, 4),
+            'grade_settings.max_voltage': round(v_max, 4),
+            'grade_settings.standard_voltage': round((v_min + v_max) / 2, 4),
+            'grade_settings.voltage_diff': round((v_max - v_min) / 2, 4),
+            'grade_settings.auto_calc_range': False,
+            'grade_settings.rs_grade_count': rs_grade_count,
+            'grade_settings.rs_min': round(rs_min, 4),
+            'grade_settings.rs_max': round(rs_max, 4),
+            'grade_settings.rs_auto_calc': False,
+            'grade_settings.rct_min': round(rct_min, 4),
+            'grade_settings.rct_max': round(rct_max, 4),
+            'grade_settings.rct_auto_calc': False,
+            'impedance.rs_grade_count': rs_grade_count,
+            'impedance.rs_min': round(rs_min, 4),
+            'impedance.rs_grade3_max': round(rs_max, 4),
+            'impedance.rct_grade_count': 3,
+            'impedance.rct_min': round(rct_min, 4),
+            'impedance.rct_grade3_max': round(rct_max, 4),
+        }
+        for i, (lo, hi) in enumerate(rs_ranges):
+            updates[f'grade_settings.rs{i+1}_max'] = round(hi, 4)
+            updates[f'impedance.rs_grade{i+1}_max'] = round(hi, 4)
+        for i, (lo, hi) in enumerate(rct_ranges):
+            updates[f'grade_settings.rct{i+1}_max'] = round(hi, 4)
+            updates[f'impedance.rct_grade{i+1}_max'] = round(hi, 4)
+
+        for key, value in updates.items():
+            self.config_manager.set(key, value)
+        self.config_manager.save_config()
+
+        QMessageBox.information(self, "保存成功", f"判定范围已生成并保存到配置！\n\n{detail_text}")
 
     def _start_export(self, file_path: str, export_format: str, data_to_export: List[Dict] = None):
         """开始导出任务"""

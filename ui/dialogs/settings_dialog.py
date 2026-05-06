@@ -102,30 +102,38 @@ class SettingsDialog(QDialog):
 
         self.setModal(True)
 
-        # 获取主窗体的高度并设置相同高度，实现居中显示
+        # 优先跟随父窗口所在屏幕，避免远程桌面/虚拟主屏导致取到错误的黑屏尺寸
+        screen = None
         parent_widget = self.parent()
-        if parent_widget and hasattr(parent_widget, 'height'):
-            parent_height = parent_widget.height()
-            parent_width = parent_widget.width()
-            parent_pos = parent_widget.pos()
+        if parent_widget is not None:
+            try:
+                parent_handle = parent_widget.windowHandle()
+                if parent_handle is not None:
+                    screen = parent_handle.screen()
+            except Exception:
+                screen = None
 
-            # 设置与主窗体相同的高度，宽度稍小一些
-            dialog_width = int(parent_width * 0.9)
-            dialog_height = parent_height
+        if screen is None:
+            screen = QApplication.primaryScreen()
 
+        if screen is not None:
+            available = screen.availableGeometry()
+            dialog_width = max(1400, int(available.width() * 0.96))
+            dialog_height = max(900, int(available.height() * 0.96))
+            dialog_width = min(dialog_width, available.width())
+            dialog_height = min(dialog_height, available.height())
             self.resize(dialog_width, dialog_height)
 
-            # 计算居中位置
-            center_x = parent_pos.x() + (parent_width - dialog_width) // 2
-            center_y = parent_pos.y()
-
+            center_x = available.x() + (available.width() - dialog_width) // 2
+            center_y = available.y() + (available.height() - dialog_height) // 2
             self.move(center_x, center_y)
+            QTimer.singleShot(0, self.showMaximized)
         else:
-            # 如果没有父窗体，使用默认设置
-            self.showMaximized()
+            self.resize(1600, 980)
+            QTimer.singleShot(0, self.showMaximized)
 
-        # 设置最小尺寸（当用户退出全屏时的备用尺寸）
-        self.setMinimumSize(1200, 850)
+        # 设置最小尺寸（当用户退出最大化时的备用尺寸）
+        self.setMinimumSize(1400, 900)
 
         # 创建主布局
         main_layout = QVBoxLayout(self)

@@ -209,16 +209,20 @@ def set_config():
         data = request.get_json(silent=True) or {}
 
         if 'updates' in data:
-            for k, v in data['updates'].items():
-                config_mgr.set(k, v)
+            base_key = data.get('key')
+            updates = data['updates'] or {}
+            for k, v in updates.items():
+                target_key = f"{base_key}.{k}" if base_key else k
+                config_mgr.set(target_key, v)
             config_mgr.save_config()
-            logger.info(f"Config updated via API: {list(data['updates'].keys())}")
-            return jsonify({"success": True, "message": f"Updated {len(data['updates'])} config items"})
+            updated_keys = [f"{base_key}.{k}" if base_key else k for k in updates.keys()]
+            logger.info(f"Config updated via API: {updated_keys}")
+            return jsonify({"success": True, "message": f"Updated {len(updates)} config items", "updated_keys": updated_keys})
         elif 'key' in data:
             config_mgr.set(data['key'], data.get('value'))
             config_mgr.save_config()
             logger.info(f"Config updated via API: {data['key']} = {data.get('value')}")
-            return jsonify({"success": True, "message": f"Config {data['key']} updated"})
+            return jsonify({"success": True, "message": f"Config {data['key']} updated", "updated_keys": [data['key']]})
         else:
             return jsonify({"success": False, "error": "Missing 'key' or 'updates' in request body"})
     except Exception as e:
