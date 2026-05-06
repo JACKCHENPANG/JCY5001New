@@ -37,6 +37,7 @@ import DataExportModal from '../components/DataExportModal';
 import NyquistChart from '../components/NyquistChart';
 import dayjs from 'dayjs';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
@@ -259,6 +260,90 @@ const DataAnalysisPage: React.FC = () => {
       min: Math.max(0, safeMin - pad),
       max: safeMax + pad,
     };
+  };
+
+  const splitRangeByCount = (minValue: number, maxValue: number, count: number) => {
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue) || count <= 0 || minValue >= maxValue) {
+      return [] as Array<{ min: number; max: number }>;
+    }
+    if (count === 1) {
+      return [{ min: minValue, max: maxValue }];
+    }
+    if (count === 2) {
+      const mid = (minValue + maxValue) / 2;
+      return [
+        { min: minValue, max: mid },
+        { min: mid, max: maxValue },
+      ];
+    }
+    const step = (maxValue - minValue) / 3;
+    const g1 = minValue + step;
+    const g2 = minValue + 2 * step;
+    return [
+      { min: minValue, max: g1 },
+      { min: g1, max: g2 },
+      { min: g2, max: maxValue },
+    ];
+  };
+
+  const saveJudgementRange = async () => {
+    if (!rangeDraft) {
+      return;
+    }
+
+    try {
+      const rsRanges = splitRangeByCount(rangeDraft.rs.min, rangeDraft.rs.max, rsGradeCount);
+      const rctRanges = splitRangeByCount(rangeDraft.rct.min, rangeDraft.rct.max, 3);
+
+      const updates: Record<string, any> = {
+        'grade_settings.voltage_min': rangeDraft.voltage.min,
+        'grade_settings.voltage_max': rangeDraft.voltage.max,
+        'grade_settings.rs_grade_count': rsGradeCount,
+        'grade_settings.rs_min': rangeDraft.rs.min,
+        'grade_settings.rs_max': rangeDraft.rs.max,
+        'grade_settings.rs_auto_calc': true,
+        'grade_settings.rct_min': rangeDraft.rct.min,
+        'grade_settings.rct_max': rangeDraft.rct.max,
+        'grade_settings.rct_auto_calc': true,
+        'impedance.rs_grade_count': rsGradeCount,
+        'impedance.rs_min': rangeDraft.rs.min,
+        'impedance.rs_grade3_max': rangeDraft.rs.max,
+        'impedance.rct_grade_count': 3,
+        'impedance.rct_min': rangeDraft.rct.min,
+        'impedance.rct_grade3_max': rangeDraft.rct.max,
+      };
+
+      rsRanges.forEach((range, index) => {
+        updates[`grade_settings.rs${index + 1}_max`] = range.max;
+        updates[`impedance.rs_grade${index + 1}_max`] = range.max;
+      });
+
+      rctRanges.forEach((range, index) => {
+        updates[`grade_settings.rct${index + 1}_max`] = range.max;
+        updates[`impedance.rct_grade${index + 1}_max`] = range.max;
+      });
+
+      localStorage.setItem('jcy5001.eis.judgementRangeDraft', JSON.stringify(rangeDraft));
+
+      const response = await fetch(`${API_BASE_URL}/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ updates }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+
+      message.success('判定范围已生成并同步到配置');
+      setRangeModalVisible(false);
+    } catch (error) {
+      console.error('保存判定范围失败:', error);
+      message.error('保存判定范围失败');
+    }
   };
 
   const generateJudgementRange = () => {
@@ -602,7 +687,7 @@ const DataAnalysisPage: React.FC = () => {
         open={rangeModalVisible}
         onOk={saveJudgementRange}
         onCancel={() => setRangeModalVisible(false)}
-        okText="保存草稿"
+        okText="保存并应用"
         cancelText="取消"
         width={760}
       >
