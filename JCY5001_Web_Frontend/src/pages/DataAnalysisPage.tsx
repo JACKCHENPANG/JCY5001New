@@ -18,7 +18,8 @@ import {
   Tag,
   Divider,
   Form,
-  Spin
+  Spin,
+  Modal
 } from 'antd';
 import {
   SearchOutlined,
@@ -88,6 +89,21 @@ interface FilterConditions {
   searchText?: string;
 }
 
+interface JudgementRangeField {
+  min: number;
+  max: number;
+}
+
+interface JudgementRangeDraft {
+  sampleCount: number;
+  passCount: number;
+  verdict: '合格' | '可疑' | '不合格';
+  reason: string;
+  voltage: JudgementRangeField;
+  rs: JudgementRangeField;
+  rct: JudgementRangeField;
+}
+
 const DataAnalysisPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
@@ -102,6 +118,8 @@ const DataAnalysisPage: React.FC = () => {
   const [recalculatingGrades, setRecalculatingGrades] = useState(false);  // 重新计算档位的加载状态
   const [selectedRecord, setSelectedRecord] = useState<TestResult | null>(null);
   const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [rangeModalVisible, setRangeModalVisible] = useState(false);
+  const [rangeDraft, setRangeDraft] = useState<JudgementRangeDraft | null>(null);
 
   // 获取测试数据
   const fetchTestResults = async () => {
@@ -225,6 +243,82 @@ const DataAnalysisPage: React.FC = () => {
     }
     
     setExportModalVisible(true);
+  };
+
+  const getSelectedResults = () => {
+    const selectedIds = new Set(selectedRowKeys.map(key => Number(key)));
+    return filteredResults.filter(item => selectedIds.has(item.id));
+  };
+
+  const padRange = (minValue: number, maxValue: number, ratio: number = 0.05) => {
+    const safeMin = Number.isFinite(minValue) ? minValue : 0;
+    const safeMax = Number.isFinite(maxValue) ? maxValue : 0;
+    const span = safeMax - safeMin;
+    const pad = span > 0 ? span * ratio : Math.max(Math.abs(safeMin) * ratio, 0.001);
+    return {
+      min: Math.max(0, safeMin - pad),
+      max: safeMax + pad,
+    };
+  };
+
+  const generateJudgementRange = () => {
+    const selected = getSelectedResults();
+
+    if (selected.length === 0) {
+      message.warning('请先选择至少一条样本');
+      return;
+    }
+
+    const passSamples = selected.filter(item => item.result === 'pass');
+    const workingSet = passSamples.length > 0 ? passSamples : selected;
+
+    const voltageValues = workingSet.map(item => item.voltage).filter(value => Number.isFinite(value));
+    const rsValues = workingSet.map(item => item.rs).filter(value => Number.isFinite(value));
+    const rctValues = workingSet.map(item => item.rct).filter(value => Number.isFinite(value));
+
+    if (voltageValues.length === 0 || rsValues.length === 0 || rctValues.length === 0) {
+      message.error('所选样本缺少可用于生成范围的数值');
+      return;
+    }
+
+    const voltageRange = padRange(Math.min(...voltageValues), Math.max(...voltageValues), 0.02);
+    const rsRange = padRange(Math.min(...rsValues), Math.max(...rsValues), 0.05);
+    const rctRange = padRange(Math.min(...rctValues), Math.max(...rctValues), 0.05);
+    const passCount = passSamples.length;
+    const verdict: JudgementRangeDraft['verdict'] =
+      passCount === selected.length ? '合格' : (passCount > 0 ? '可疑' : '不合格');
+
+    const reason = passCount === selected.length
+      ? '所选样本全部合格，适合直接生成判定范围'
+      : passCount > 0
+        ? '所选样本中存在非合格项，建议先人工确认再保存'
+        : '所选样本全部不合格，不建议直接用于生成判定范围';
+
+    setRangeDraft({
+      sampleCount: selected.length,
+      passCount,
+      verdict,
+      reason,
+      voltage: voltageRange,
+      rs: rsRange,
+      rct: rctRange,
+    });
+    setRangeModalVisible(true);
+  };
+
+  const saveJudgementRange = () => {
+    if (!rangeDraft) {
+      return;
+    }
+
+    try {
+      localStorage.setItem('jcy5001.eis.judgementRangeDraft', JSON.stringify(rangeDraft));
+      message.success('判定范围草稿已保存到本地');
+      setRangeModalVisible(false);
+    } catch (error) {
+      console.error('保存判定范围草稿失败:', error);
+      message.error('保存判定范围草稿失败');
+    }
   };
 
   // 表格列定义
@@ -356,6 +450,14 @@ const DataAnalysisPage: React.FC = () => {
               disabled={selectedRowKeys.length === 0}
             >
               导出数据 ({selectedRowKeys.length})
+            </Button>
+            <Button
+              type="default"
+              icon={<LineChartOutlined />}
+              onClick={generateJudgementRange}
+              disabled={selectedRowKeys.length === 0}
+            >
+              生成判定范围
             </Button>
           </Space>
         </Col>
@@ -493,6 +595,34 @@ const DataAnalysisPage: React.FC = () => {
           </div>
         )}
       </Drawer>
+
+      {/* 判定范围模态框 */}
+      <Modal
+        title="生成判定范围"
+        open={rangeModalVisible}
+        onOk={saveJudgementRange}
+        onCancel={() => setRangeModalVisible(false)}
+        okText="保存草稿"
+        cancelText="取消"
+        width={760}
+      >
+        {rangeDraft && (
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Card size="small" title="样本概况">
+              <p><strong>样本数:</strong> {rangeDraft.sampleCount}</p>
+              <p><strong>合格样本数:</strong> {rangeDraft.passCount}</p>
+              <p><strong>建议判定:</strong> {rangeDraft.verdict}</p>
+              <p><strong>说明:</strong> {rangeDraft.reason}</p>
+            </Card>
+
+            <Card size="small" title="建议范围">
+              <p><strong>电压范围:</strong> {rangeDraft.voltage.min.toFixed(3)} V ~ {rangeDraft.voltage.max.toFixed(3)} V</p>
+              <p><strong>Rs范围:</strong> {rangeDraft.rs.min.toFixed(3)} mΩ ~ {rangeDraft.rs.max.toFixed(3)} mΩ</p>
+              <p><strong>Rct范围:</strong> {rangeDraft.rct.min.toFixed(3)} mΩ ~ {rangeDraft.rct.max.toFixed(3)} mΩ</p>
+            </Card>
+          </Space>
+        )}
+      </Modal>
 
       {/* 数据导出模态框 */}
       <DataExportModal
