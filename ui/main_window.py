@@ -1635,9 +1635,9 @@ class MainWindow(QMainWindow):
                 'voltage': 0.0,
                 'rs_value': 0.0,
                 'rct_value': 0.0,
-                'rs_grade': 1,
-                'rct_grade': 1,
-                'grade_result': '1-1',
+                'rs_grade': '--',
+                'rct_grade': '--',
+                'grade_result': '不合格',
                 'is_pass': False,
                 'timestamp': datetime.now()
             }
