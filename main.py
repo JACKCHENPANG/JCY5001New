@@ -6,7 +6,7 @@ JCY5001AS鲸测云8路EIS阻抗筛选仪产线界面
 
 Author: Jack
 Date: 2025-09-12
-Version: V0.92.32
+Version: V0.92.58
 """
 
 import logging
@@ -129,7 +129,7 @@ def setup_application():
 
     # 设置应用程序基本信息
     app.setApplicationName("JCY5001AS鲸测云8路EIS阻抗筛选仪")
-    app.setApplicationVersion("V0.92.42")
+    app.setApplicationVersion("V0.92.58")
     app.setOrganizationName("鲸测云")
     app.setOrganizationDomain("jingceyun.com")
 
