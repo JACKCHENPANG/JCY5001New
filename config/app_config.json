@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "JCY5001 八通道EIS综合测试仪",
-    "version": "V0.92.58",
+    "version": "V0.92.57",
     "trial_days": 30,
     "start_date": null,
     "show_startup_license_dialog": false
@@ -289,7 +289,7 @@
     "battery_spec": "21700",
     "batch_number": "BATCH-20260504-001",
     "operator": "未设置1",
-    "production_date": "周三 5月 6 2026",
+    "production_date": "周日 5月 17 2026",
     "remarks": "",
     "battery_type": "磷酸铁锂",
     "standard_voltage": 3.2,
@@ -336,16 +336,16 @@
     "copies": 1
   },
   "test_count": {
-    "channel_1": 23,
+    "channel_1": 24,
     "channel_2": 21,
-    "channel_3": 23,
-    "channel_4": 14,
-    "channel_5": 23,
-    "channel_6": 23,
-    "channel_7": 13,
-    "channel_8": 13
+    "channel_3": 24,
+    "channel_4": 15,
+    "channel_5": 24,
+    "channel_6": 24,
+    "channel_7": 14,
+    "channel_8": 14
   },
-  "version": "V0.92.58",
+  "version": "V0.92.57",
   "battery_range": "1mΩ以下",
   "enabled_channels": [
     1,

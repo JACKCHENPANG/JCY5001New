@@ -400,6 +400,10 @@ class GradeSettingsWidget(QWidget):
     def load_all_config(self):
         """加载所有配置"""
         try:
+            # 从文件重新加载，确保读到最新配置（如刚刚生成的判定范围）
+            if self.config_manager:
+                self.config_manager.reload_config()
+
             self.grade_range_manager.load_config()
             self.voltage_range_manager.load_config()
 

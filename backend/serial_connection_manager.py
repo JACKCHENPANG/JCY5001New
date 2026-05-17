@@ -283,35 +283,119 @@ class SerialConnectionManager:
                 if timeout is None:
                     timeout = self.timeout
 
-                response = bytearray()
-                start_time = time.time()
-
-                while time.time() - start_time < timeout:
-                    if self.connection.in_waiting > 0:
-                        data_received = self.connection.read(self.connection.in_waiting)
-                        response.extend(data_received)
-                        logger.debug(f"յ: {' '.join([f'{b:02X}' for b in data_received])}")
-
-                        # ݣȴһСʱ俴Ƿи
-                        if len(response) > 0:
-                            time.sleep(0.01)
-                            if self.connection.in_waiting == 0:
-                                break
-
-                    time.sleep(0.005)
-
-                if len(response) > 0:
-                    logger.debug(f"ɣܳ: {len(response)}")
+                response = self._read_modbus_response_frame(data, timeout)
+                if response:
                     self.reset_failure_count()
-                    return bytes(response)
-                else:
-                    logger.debug("δյ")
-                    return None
+                    return response
+
+                logger.debug("δյ")
+                return None
 
         except Exception as e:
             logger.error(f"Ͳʧ: {e}")
             self._handle_communication_failure(f"Ͳʧ: {e}")
             return None
+
+    def _read_modbus_response_frame(self, request: bytes, timeout: float) -> Optional[bytes]:
+        """读取并对齐一个完整的Modbus RTU响应帧，减少半帧/粘包导致的CRC失败。"""
+        try:
+            expected_address = request[0] if len(request) > 0 else None
+            expected_function = request[1] if len(request) > 1 else None
+            buffer = bytearray()
+            start_time = time.time()
+
+            while time.time() - start_time < timeout:
+                waiting = self.connection.in_waiting
+                if waiting > 0:
+                    chunk = self.connection.read(waiting)
+                    buffer.extend(chunk)
+                    logger.debug(f"յ: {' '.join([f'{b:02X}' for b in chunk])}")
+
+                    frame = self._extract_modbus_frame(buffer, expected_address, expected_function)
+                    if frame:
+                        logger.debug(f"完整响应帧: {' '.join([f'{b:02X}' for b in frame])}")
+                        return frame
+
+                time.sleep(0.003)
+
+            if buffer:
+                logger.debug(f"响应帧不完整或CRC无效: {' '.join([f'{b:02X}' for b in buffer])}")
+            return None
+        except Exception as e:
+            logger.error(f"读取Modbus响应帧失败: {e}")
+            return None
+
+    def _extract_modbus_frame(self, buffer: bytearray, expected_address: Optional[int],
+                              expected_function: Optional[int]) -> Optional[bytes]:
+        """从缓冲区提取地址/功能码匹配且CRC有效的响应帧。"""
+        try:
+            while len(buffer) >= 5:
+                # 丢弃响应前的噪声字节，直到设备地址匹配。
+                if expected_address is not None and buffer[0] != expected_address:
+                    del buffer[0]
+                    continue
+
+                function_code = buffer[1]
+                if expected_function is not None and function_code not in (expected_function, expected_function | 0x80):
+                    del buffer[0]
+                    continue
+
+                expected_length = self._expected_modbus_response_length(buffer)
+                if expected_length <= 0:
+                    return None
+
+                if len(buffer) < expected_length:
+                    return None
+
+                frame = bytes(buffer[:expected_length])
+                if self._verify_modbus_crc(frame):
+                    del buffer[:expected_length]
+                    return frame
+
+                # 当前帧CRC不对，移动一个字节继续找帧头。
+                logger.debug(f"丢弃CRC无效帧头: {buffer[0]:02X}")
+                del buffer[0]
+
+            return None
+        except Exception as e:
+            logger.debug(f"提取Modbus响应帧失败: {e}")
+            return None
+
+    def _expected_modbus_response_length(self, buffer: bytearray) -> int:
+        """根据响应头计算期望帧长。"""
+        if len(buffer) < 2:
+            return 0
+
+        function_code = buffer[1]
+        if function_code & 0x80:
+            return 5
+
+        if function_code in (0x03, 0x04, 0x02):
+            if len(buffer) < 3:
+                return 0
+            return 3 + buffer[2] + 2
+
+        if function_code in (0x05, 0x06, 0x0F, 0x10):
+            return 8
+
+        return 0
+
+    def _verify_modbus_crc(self, frame: bytes) -> bool:
+        """验证Modbus CRC16。"""
+        if len(frame) < 4:
+            return False
+
+        crc = 0xFFFF
+        for byte in frame[:-2]:
+            crc ^= byte
+            for _ in range(8):
+                if crc & 0x0001:
+                    crc = (crc >> 1) ^ 0xA001
+                else:
+                    crc >>= 1
+
+        received_crc = frame[-2] | (frame[-1] << 8)
+        return crc == received_crc
     
     def perform_health_check(self) -> bool:
         """

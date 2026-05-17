@@ -319,6 +319,10 @@ class SplitChannelsContainerWidget(QWidget):
                 # 提取频点信息，确保类型安全
                 frequency = progress_data.get('frequency', 0)
                 frequency_index = progress_data.get('frequency_index', 0)
+                completed_frequency_count = progress_data.get(
+                    'completed_frequency_count',
+                    progress_data.get('completed_frequencies', frequency_index)
+                )
                 total_frequencies = progress_data.get('total_frequencies', 0)
                 state = progress_data.get('state', 'unknown')
 
@@ -346,7 +350,9 @@ class SplitChannelsContainerWidget(QWidget):
                         self._staggered_channel_frequencies[channel_num] = frequency
 
                     # 调用频率更新
-                    channel.update_frequency_info(frequency, frequency_index, total_frequencies, state)
+                    channel.update_frequency_info(
+                        frequency, frequency_index, total_frequencies, state, completed_frequency_count
+                    )
             else:
                 logger.warning(f"通道{channel_num}不存在")
 

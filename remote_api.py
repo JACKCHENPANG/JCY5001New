@@ -53,8 +53,14 @@ def get_state():
     """获取当前状态"""
     state = api_state.copy()
     # 同步主窗口的实际测试状态
-    if _main_window is not None and hasattr(_main_window, 'is_testing'):
-        state['is_testing'] = _main_window.is_testing
+    if _main_window is not None:
+        if hasattr(_main_window, 'is_testing'):
+            state['is_testing'] = _main_window.is_testing
+        # 同步连接状态 - 只有当真正连接时才报告端口
+        state['connected_device'] = None
+        if hasattr(_main_window, 'comm_manager') and _main_window.comm_manager:
+            if hasattr(_main_window.comm_manager, 'is_connected') and _main_window.comm_manager.is_connected:
+                state['connected_device'] = getattr(_main_window.comm_manager, 'port', None)
     return state
 
 def _get_manager(name):
@@ -71,7 +77,19 @@ def _get_manager(name):
 
 # ============ 状态监控 API ============
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """轻量健康检查，不依赖主窗口或设备通信。"""
+    return jsonify({
+        "success": True,
+        "status": "ok",
+        "app_running": api_state.get("app_running", True),
+        "api_ready": True,
+        "has_main_window": _main_window is not None
+    })
+
 @app.route('/status', methods=['GET'])
+@app.route('/api/status', methods=['GET'])
 def get_status():
     """获取应用当前状态"""
     return jsonify({

@@ -41,6 +41,10 @@ class DataReadManager:
         # 数据缓存
         self.data_cache = {}
 
+        # 通道数缓存。设备是固定 8 路，读取通道数偶发无响应时不应让 UI 误判为异常。
+        self.channel_count_cache_timeout = 300.0
+        self.channel_count_cache_timestamp = 0
+
         # 电压缓存时效性控制（秒）- 修复测试中电压显示为0的问题
         self.voltage_cache_timeout = 30.0  # 30秒缓存有效期，避免测试过程中频繁失效
         self.voltage_cache_timestamp = 0
@@ -69,7 +73,7 @@ class DataReadManager:
             response = self._send_command_with_retry(command)
             if not response:
                 logger.error("读取通道数失败：无响应")
-                return 0
+                return self._get_cached_channel_count()
             
             # 解析响应
             values = self.protocol_handler.parse_read_registers_response(response)
@@ -77,14 +81,26 @@ class DataReadManager:
                 channel_count = values[0]
                 logger.info(f"读取到设备通道数: {channel_count}")
                 self.data_cache['channel_count'] = channel_count
+                self.channel_count_cache_timestamp = time.time()
                 return channel_count
             else:
                 logger.error("解析通道数响应失败")
-                return 0
+                return self._get_cached_channel_count()
                 
         except Exception as e:
             logger.error(f"获取通道数失败: {e}")
-            return 0
+            return self._get_cached_channel_count()
+
+    def _get_cached_channel_count(self) -> int:
+        """返回最近一次有效通道数，避免瞬时通信失败影响固定 8 路设备显示。"""
+        try:
+            cached = self.data_cache.get('channel_count')
+            if cached and time.time() - self.channel_count_cache_timestamp < self.channel_count_cache_timeout:
+                logger.warning(f"使用缓存通道数: {cached}")
+                return cached
+        except Exception as e:
+            logger.debug(f"读取缓存通道数失败: {e}")
+        return 0
     
     def read_battery_voltages(self) -> List[float]:
         """

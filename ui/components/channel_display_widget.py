@@ -1506,14 +1506,21 @@ class ChannelDisplayWidget(QWidget):
             logger.error(f"详细错误信息: {traceback.format_exc()}")
             # 确保异常不会导致程序闪退
 
-    def update_frequency_info(self, frequency: float, current_index: int, total_count: int, status: str = "waiting"):
-        """Update frequency progress label"""
+    def update_frequency_info(self, frequency: float, current_index: int, total_count: int,
+                              status: str = "waiting", completed_count: int = None):
+        """Update frequency progress label."""
         try:
             if hasattr(self, "frequency_progress_label") and self.frequency_progress_label:
+                display_count = completed_count if completed_count is not None else current_index
+                if display_count is None:
+                    display_count = 0
+                if total_count is None:
+                    total_count = 0
+                display_count = max(0, min(int(display_count), int(total_count))) if total_count else 0
                 if status == "completed":
                     self.frequency_progress_label.setText(f"频点: {total_count}/{total_count}")
                 else:
-                    self.frequency_progress_label.setText(f"频点: {current_index}/{total_count}")
+                    self.frequency_progress_label.setText(f"频点: {display_count}/{total_count}")
         except Exception:
             pass
 
@@ -1568,7 +1575,11 @@ class ChannelDisplayWidget(QWidget):
                 # 修复频率显示参数使用正确的频点索引和总数
                 if frequency > 0:
                     # 修复使用后端传递的正确键名获取频点信息
-                    current_index = progress_data.get('frequency_index', progress_data.get('current_frequency_index', 1))
+                    completed_count = progress_data.get(
+                        'completed_frequency_count',
+                        progress_data.get('completed_frequencies', progress_data.get('frequency_index', 0))
+                    )
+                    current_index = progress_data.get('current_frequency_index', progress_data.get('frequency_index', 1))
                     total_count = progress_data.get('total_frequencies', progress_data.get('total_frequency_count', 2))  # 修复：默认值改为2
 
                     # 修复移除错误的推算逻辑，直接使用后端提供的准确信息
@@ -1581,7 +1592,7 @@ class ChannelDisplayWidget(QWidget):
                     logger.debug(f"通道{self.channel_number}更新频点显示: {frequency}Hz ({current_index}/{total_count}) testing")
                     # 更新频点进度标签
                     if hasattr(self, 'frequency_progress_label') and self.frequency_progress_label:
-                        self.frequency_progress_label.setText(f"频点: {current_index}/{total_count}")
+                        self.frequency_progress_label.setText(f"频点: {completed_count}/{total_count}")
 
             elif state == 'completed':
                 # 修复测试完成时停止计时器
@@ -1714,13 +1725,17 @@ class ChannelDisplayWidget(QWidget):
                 # 修复频率显示为完成状态使用正确的频点信息
                 if frequency > 0:
                     # 从进度数据中获取频点信息
-                    current_index = progress_data.get('current_frequency_index', 20)  # 默认最后一个频点
-                    total_count = progress_data.get('total_frequency_count', 20)
+                    current_index = progress_data.get('current_frequency_index', progress_data.get('frequency_index', 20))
+                    total_count = progress_data.get('total_frequencies', progress_data.get('total_frequency_count', 20))
+                    completed_count = progress_data.get(
+                        'completed_frequency_count',
+                        progress_data.get('completed_frequencies', current_index)
+                    )
 
                     logger.debug(f"通道{self.channel_number}测试完成频点显示: {frequency}Hz ({current_index}/{total_count}) completed")
                     # 更新频点进度标签（测试完成）
                     if hasattr(self, 'frequency_progress_label') and self.frequency_progress_label:
-                        self.frequency_progress_label.setText(f"频点: {current_index}/{total_count}")
+                        self.frequency_progress_label.setText(f"频点: {completed_count}/{total_count}")
 
             elif state == 'sampling_completed':
                 # 关键修复处理取样测试完成状态

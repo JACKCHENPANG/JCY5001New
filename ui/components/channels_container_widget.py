@@ -704,6 +704,10 @@ class ChannelsContainerWidget(QWidget):
                 rsei = raw_rsei if raw_rsei > 0.1 else 0.0
                 frequency = progress_data.get('frequency', 0.0)
                 frequency_index = progress_data.get('frequency_index', 0)
+                completed_frequency_count = progress_data.get(
+                    'completed_frequency_count',
+                    progress_data.get('completed_frequencies', frequency_index)
+                )
                 total_frequencies = progress_data.get('total_frequencies', 0)
 
                 if state == 'completed':
@@ -749,7 +753,7 @@ class ChannelsContainerWidget(QWidget):
 
                         # 修复调用频率更新
                         channel_widget.update_frequency_info(
-                            frequency, frequency_index, total_frequencies, state
+                            frequency, frequency_index, total_frequencies, state, completed_frequency_count
                         )
                     else:
                         pass

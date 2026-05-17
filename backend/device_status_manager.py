@@ -105,6 +105,9 @@ class DeviceStatusManager:
         Returns:
             状态码枚举
         """
+        if status_code is None:
+            logger.debug("状态码为空，按空闲状态处理")
+            return DeviceStatusCode.IDLE
         try:
             return DeviceStatusCode(status_code)
         except ValueError:

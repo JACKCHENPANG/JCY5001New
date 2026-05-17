@@ -6,29 +6,42 @@ JCY5001AS鲸测云8路EIS阻抗筛选仪产线界面
 
 Author: Jack
 Date: 2025-09-12
-Version: V0.92.58
+Version: V0.92.59
 """
 
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
 import os
+import io
 from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QFont, QPixmap, QColor
+
+# 设置stdout/stderr为UTF-8编码，防止emoji日志出现乱码
+try:
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
 
 # 优化简化日志格式，减少文件大小
 SIMPLE_FORMAT = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 CONSOLE_FORMAT = '%(levelname)s: %(message)s'
 
 # 优化配置日志轮转，防止单个文件过大
-logging.basicConfig(
-    level=logging.INFO,  # 优化默认使用INFO级别，减少日志量
-    format=CONSOLE_FORMAT,
-    handlers=[
-        logging.StreamHandler(sys.stdout)  # 输出到控制台
-    ]
-)
+# 创建控制台处理器，指定UTF-8编码
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter(CONSOLE_FORMAT)
+console_handler.setFormatter(console_formatter)
+
+# 配置根logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(console_handler)
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +142,7 @@ def setup_application():
 
     # 设置应用程序基本信息
     app.setApplicationName("JCY5001AS鲸测云8路EIS阻抗筛选仪")
-    app.setApplicationVersion("V0.92.58")
+    app.setApplicationVersion("V0.92.59")
     app.setOrganizationName("鲸测云")
     app.setOrganizationDomain("jingceyun.com")
 
@@ -269,44 +282,6 @@ def main():
         # 创建主窗口
         main_window = MainWindow(config_manager, database_manager)
 
-        startup_optimizer.start_stage("设备自动识别")
-        update_splash_message(splash, "正在自动识别设备...")
-        
-        # 🚀 自动识别和连接设备
-        try:
-            from backend.device_detector import DeviceDetector
-                        
-            logger.info("🔍 开始自动识别设备...")
-            
-            # 创建设备检测器
-            detector = DeviceDetector()
-            
-            # 自动识别设备
-            port = detector.detect_device()
-            
-            if port:
-                logger.info(f"✅ 检测到设备: {port}")
-                
-                # 获取通信管理器
-                if hasattr(main_window, 'comm_manager') and main_window.comm_manager:
-                    # 使用通信管理器连接设备
-                    success = main_window.comm_manager.reconnect_with_new_port(port)
-                    
-                    if success:
-                        logger.info(f"✅ 已自动连接到设备: {port}")
-                        update_splash_message(splash, f"已连接设备: {port}")
-                    else:
-                        logger.warning(f"⚠️ 自动连接失败: {port}")
-                else:
-                    logger.warning("⚠️ 通信管理器未初始化，跳过自动连接")
-            else:
-                logger.warning("⚠️ 未检测到设备，请手动连接")
-                update_splash_message(splash, "未检测到设备")
-                
-        except Exception as e:
-            logger.error(f"❌ 自动识别设备失败: {e}")
-            logger.warning("将使用手动连接模式")
-
         startup_optimizer.start_stage("窗口显示")
         # 修改启动时自动最大化显示（保留任务栏和窗口边框）
         main_window.showMaximized()
@@ -317,7 +292,75 @@ def main():
 
         # 🚀 优化：立即初始化非关键组件，减少启动卡顿
         from PyQt5.QtCore import QTimer
-        QTimer.singleShot(100, delayed_initialization)  # 减少延迟时间
+        QTimer.singleShot(2000, delayed_initialization)  # 减少延迟时间
+
+        # 自动连接到设备 - 延迟到UI初始化完成后
+        def do_autoconnect():
+            try:
+                cm = getattr(main_window, 'comm_manager', None)
+                if not cm:
+                    return
+
+                def _is_connected(cm):
+                    try:
+                        if hasattr(cm, 'is_device_connected') and callable(cm.is_device_connected):
+                            return cm.is_device_connected()
+                        v = getattr(cm, 'is_connected', False)
+                        return v() if callable(v) else bool(v)
+                    except Exception:
+                        return False
+
+                def _get_port(cm):
+                    try:
+                        if hasattr(cm, 'get_connection_info') and callable(cm.get_connection_info):
+                            info = cm.get_connection_info()
+                            if info and info.get('port'):
+                                return info['port']
+                        return getattr(cm, 'port', None)
+                    except Exception:
+                        return None
+
+                # 已连接则只同步 API 状态，无需重复连接
+                if _is_connected(cm):
+                    current_port = _get_port(cm)
+                    if current_port:
+                        logger.info(f"✅ 设备已连接: {current_port}，同步API状态")
+                        try:
+                            from remote_api import update_state
+                            update_state(connected_device=current_port)
+                        except Exception:
+                            pass
+                        return
+
+                # 未连接则尝试自动识别并连接
+                from backend.device_detector import DeviceDetector
+                logger.info("🔍 开始自动识别设备...")
+                detector = DeviceDetector()
+                port = detector.detect_device()
+
+                if port:
+                    logger.info(f"✅ 检测到设备: {port}，正在连接...")
+                    success = cm.reconnect_with_new_port(port)
+                    if success:
+                        logger.info(f"✅ 已自动连接到设备: {port}")
+                        try:
+                            from remote_api import update_state
+                            update_state(connected_device=port)
+                        except Exception:
+                            pass
+                    else:
+                        logger.warning(f"⚠️ 自动连接失败: {port}")
+                else:
+                    # detect_device失败可能是因为端口已被本进程占用（已连接）
+                    if _is_connected(cm):
+                        current_port = _get_port(cm)
+                        logger.info(f"✅ 设备已连接: {current_port or 'unknown'}")
+                    else:
+                        logger.warning("⚠️ 未检测到设备，请手动连接")
+            except Exception as e:
+                logger.warning(f"⚠️ 自动识别设备失败: {e}")
+
+        QTimer.singleShot(4000, do_autoconnect)
 
         logger.info("主窗口已显示并最大化")
 

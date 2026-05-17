@@ -392,15 +392,7 @@ class ConfigManager(QObject):
             return False
 
     def save_config(self, config: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        保存配置到文件
-
-        Args:
-            config: 要保存的配置，如果为None则保存当前配置
-
-        Returns:
-            是否保存成功
-        """
+        """保存配置到文件"""
         try:
             config_to_save = config if config is not None else self._config
 
@@ -412,6 +404,16 @@ class ConfigManager(QObject):
 
         except Exception as e:
             logger.error(f"配置文件保存失败: {e}")
+            return False
+
+    def reload_config(self) -> bool:
+        """从文件重新加载配置（丢弃当前内存中的修改）"""
+        try:
+            self._config = self._load_config()
+            logger.info(f"配置文件重新加载成功: {self.config_file}")
+            return True
+        except Exception as e:
+            logger.error(f"配置文件重新加载失败: {e}")
             return False
 
     def validate_config(self) -> bool:

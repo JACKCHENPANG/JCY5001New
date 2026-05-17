@@ -95,6 +95,14 @@ class SimultaneousTestExecutor:
             logger.debug("同时测试进度记录已初始化（保持连续性）")
 
             low_frequencies = self.frequency_classifier.get_low_frequencies()
+            min_frequency = getattr(config, 'min_frequency_hz', 0.477)
+            if min_frequency and min_frequency > 0:
+                # 设备精确频点为0.4768Hz，UI常显示为0.477Hz；保留1mHz容差避免误跳过。
+                threshold = float(min_frequency) - 0.001
+                skipped = [freq for freq in low_frequencies if float(freq) < threshold]
+                low_frequencies = [freq for freq in low_frequencies if float(freq) >= threshold]
+                if skipped:
+                    logger.info(f"跳过超低频同时测试点: {skipped}Hz")
 
             if not low_frequencies:
                 logger.info("没有低频点，跳过同时测试")
@@ -246,7 +254,7 @@ class SimultaneousTestExecutor:
             是否所有通道都完成测试
         """
         try:
-            timeout = 60.0  # 超时20秒，低频点测量在PC端有重试兜底
+            timeout = float(getattr(config, 'low_frequency_timeout_seconds', 45.0))
             start_time = time.time()
             completed_channels = set()
 
@@ -275,6 +283,9 @@ class SimultaneousTestExecutor:
                 for channel_index in enabled_channels:
                     if channel_index < len(statuses):
                         status = statuses[channel_index]
+                        if status is None:
+                            logger.debug(f"通道{channel_index + 1}状态读取失败，本轮继续等待")
+                            continue
 
                         # 检查状态码
                         status_info = self.status_manager.get_channel_status_info(channel_index, status)
@@ -377,19 +388,12 @@ class SimultaneousTestExecutor:
                         real_value = channel_raw_data.get('real', 0)
                         imag_value = channel_raw_data.get('imag', 0)
 
-                        # 陈旧数据检测：与同通道已有数据对比
-                        is_stale = False
-                        if frequency in self.test_results:
-                            for prev_ch in self.test_results[frequency].values():
-                                if isinstance(prev_ch, dict) and abs(real_value - prev_ch.get("real", 0)) < 1.0 and abs(imag_value - prev_ch.get("imag", 0)) < 1.0:
-                                    is_stale = True
-                                    break
-                        # 验证数据有效性（排除陈旧数据）
-                        if not is_stale and (real_value != 0 or imag_value != 0):
+                        # 同一频点的多通道阻抗可能非常接近，不能用相似度判定为陈旧数据。
+                        if real_value != 0 or imag_value != 0:
                             valid_data_count += 1
                             logger.debug(f"通道{channel_index + 1}数据有效: Re={real_value:.3f}μΩ, Im={imag_value:.3f}μΩ")
                         else:
-                            logger.warning(f"通道{channel_index + 1}数据无效或陈旧: Re={real_value:.3f}μΩ, Im={imag_value:.3f}μΩ")
+                            logger.warning(f"通道{channel_index + 1}数据无效: Re={real_value:.3f}μΩ, Im={imag_value:.3f}μΩ")
 
                 # 如果没有有效数据，重试
                 if valid_data_count == 0:
@@ -402,19 +406,6 @@ class SimultaneousTestExecutor:
                         logger.error(f"频率{frequency}Hz所有通道数据无效（已重试{max_retries}次）")
                         return False
 
-                # 二次读取验证：保留验证但缩短等待
-                time.sleep(0.05)
-                verify_data = self.comm_manager.read_impedance_data_broadcast()
-                if verify_data and isinstance(verify_data, dict):
-                    for ch_idx in enabled_channels:
-                        if ch_idx in impedance_data and ch_idx in verify_data:
-                            orig = impedance_data[ch_idx]
-                            verf = verify_data[ch_idx]
-                            if isinstance(orig, dict) and isinstance(verf, dict):
-                                if abs(orig.get("real", 0) - verf.get("real", 0)) > 1.0 or abs(orig.get("imag", 0) - verf.get("imag", 0)) > 1.0:
-                                    logger.warning(f"通道{ch_idx+1}二次验证不一致，使用新数据")
-                                    impedance_data[ch_idx] = verf
-                
                 # 保存数据
                 if frequency not in self.test_results:
                     self.test_results[frequency] = {}
@@ -487,14 +478,19 @@ class SimultaneousTestExecutor:
                     base_progress = (completed_frequencies / total_frequencies) * 100.0
                 
                 # 当前频点的启动进度 (2%)
-                current_freq_progress = 2.0
+                if not hasattr(self, '_progress_start'):
+                    self._progress_start = time.time()
+                elapsed = time.time() - self._progress_start
+                time_floor = min(elapsed * 3.0, 25.0)
                 # 总进度，但不超过100%
-                calculated_progress = min(100.0, base_progress + current_freq_progress)
+                calculated_progress = min(100.0, base_progress + time_floor)
                 progress = int(calculated_progress)
                 
 
                 for channel_index in enabled_channels:
                     channel_num = channel_index + 1  # 转换为1-8的通道号
+                    completed_total_frequencies = high_freq_count + completed_frequencies
+                    current_frequency_index = min(completed_total_frequencies + 1, total_frequencies)
                     
                     # 确保进度不会回退如果计算出的进度小于之前的进度，使用之前的进度
                     if hasattr(self, 'last_progress'):
@@ -516,7 +512,10 @@ class SimultaneousTestExecutor:
                         'progress': progress,
                         'message': f'同时测试: {frequency}Hz',
                         'frequency': frequency,  # 所有通道使用相同频率
-                        'frequency_index': completed_frequencies + 1,
+                        'frequency_index': completed_total_frequencies,
+                        'current_frequency_index': current_frequency_index,
+                        'completed_frequency_count': completed_total_frequencies,
+                        'completed_frequencies': completed_total_frequencies,
                         'total_frequencies': total_frequencies,
                         'mode': 'simultaneous',  # 标识为同时模式
                         'base_frequency': frequency
@@ -567,12 +566,17 @@ class SimultaneousTestExecutor:
                         # 如果没有高频测试，则低频测试占100%
                         base_progress = (completed_frequencies / total_frequencies) * 100.0
                     
-                    final_progress = int(base_progress)
+                    if not hasattr(self, '_progress_start'):
+                        self._progress_start = time.time()
+                    elapsed = time.time() - self._progress_start
+                    time_floor = min(elapsed * 3.0, 25.0)
+                    final_progress = int(max(base_progress, time_floor))
                     logger.debug(f"同时测试频点{frequency}Hz完成，进度: {final_progress}% (已完成{completed_frequencies}/{low_freq_count}低频点)")
 
                 # 通知所有启用的通道进度更新
                 for channel_index in config.enabled_channels:
                     channel_num = channel_index + 1
+                    completed_total_frequencies = high_freq_count + completed_frequencies
 
                     # 确保进度不会回退检查之前的进度
                     channel_final_progress = final_progress
@@ -595,7 +599,10 @@ class SimultaneousTestExecutor:
                         'progress': channel_final_progress,
                         'message': f'同时测试频点{frequency}Hz完成' if test_state == 'testing' else '测试完成',
                         'frequency': frequency,
-                        'frequency_index': completed_frequencies,
+                        'frequency_index': completed_total_frequencies,
+                        'current_frequency_index': completed_total_frequencies,
+                        'completed_frequency_count': completed_total_frequencies,
+                        'completed_frequencies': completed_total_frequencies,
                         'total_frequencies': total_frequencies,
                         'mode': 'simultaneous_completed',  # 标识为同时测试完成
                         'completed_frequency': frequency

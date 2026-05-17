@@ -19,7 +19,8 @@ from PyQt5.QtWidgets import (
     QPushButton, QTableWidget, QTableWidgetItem,
     QProgressBar, QMessageBox, QFileDialog, QHeaderView,
     QAbstractItemView, QSplitter, QCheckBox, QWidget,
-    QProgressDialog, QTextEdit, QApplication, QListWidget
+    QProgressDialog, QTextEdit, QApplication, QListWidget,
+    QDoubleSpinBox, QSpinBox
 )
 from PyQt5.QtCore import Qt, QDate, QTimer
 from PyQt5.QtGui import QFont, QIcon, QColor
@@ -40,6 +41,165 @@ from utils.config_manager import ConfigManager
 # DRT功能已移除
 
 logger = logging.getLogger(__name__)
+
+
+class GradeRangeEditorDialog(QDialog):
+    """判定范围编辑器 - 支持微调所有档位边界"""
+    
+    def __init__(self, 
+                 voltage_min, voltage_max,
+                 rs_min, rs_max, rs_grade_count, rs_grades,
+                 rct_min, rct_max, rct_grades,
+                 sample_count, pass_count, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("判定范围编辑器")
+        self.setModal(True)
+        self.resize(480, 520)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+        
+        # 样本信息
+        sample_label = QLabel(f"样本数: {sample_count}  (合格: {pass_count})")
+        sample_label.setStyleSheet("color: #666; font-size: 12px;")
+        layout.addWidget(sample_label)
+        
+        # ------ 电压范围 ------
+        volt_group = QGroupBox("电压")
+        volt_grid = QGridLayout(volt_group)
+        self.v_min_spin = QDoubleSpinBox()
+        self.v_max_spin = QDoubleSpinBox()
+        for sp in (self.v_min_spin, self.v_max_spin):
+            sp.setDecimals(4)
+            sp.setRange(0, 10)
+            sp.setSingleStep(0.01)
+        self.v_min_spin.setValue(voltage_min)
+        self.v_max_spin.setValue(voltage_max)
+        volt_grid.addWidget(QLabel("最小值:"), 0, 0)
+        volt_grid.addWidget(self.v_min_spin, 0, 1)
+        volt_grid.addWidget(QLabel("最大值:"), 0, 2)
+        volt_grid.addWidget(self.v_max_spin, 0, 3)
+        volt_grid.addWidget(QLabel("V"), 0, 4)
+        layout.addWidget(volt_group)
+        
+        # ------ Rs范围 ------
+        rs_group = QGroupBox(f"Rs ({rs_grade_count}档)")
+        rs_grid = QGridLayout(rs_group)
+        rs_grid.setSpacing(4)
+        
+        self.rs_min_spin = QDoubleSpinBox()
+        self.rs_max_spin = QDoubleSpinBox()
+        for sp in (self.rs_min_spin, self.rs_max_spin):
+            sp.setDecimals(4)
+            sp.setRange(0, 9999)
+            sp.setSingleStep(0.5)
+        self.rs_min_spin.setValue(rs_min)
+        self.rs_max_spin.setValue(rs_max)
+        rs_grid.addWidget(QLabel("下限:"), 0, 0)
+        rs_grid.addWidget(self.rs_min_spin, 0, 1)
+        rs_grid.addWidget(QLabel("上限:"), 0, 2)
+        rs_grid.addWidget(self.rs_max_spin, 0, 3)
+        rs_grid.addWidget(QLabel("mΩ"), 0, 4)
+        
+        # Rs档位上限
+        self.rs_grade_spins = []
+        for i in range(rs_grade_count):
+            sp = QDoubleSpinBox()
+            sp.setDecimals(4)
+            sp.setRange(0, 9999)
+            sp.setSingleStep(0.5)
+            lo, hi = rs_grades[i]
+            sp.setValue(hi)
+            rs_grid.addWidget(QLabel(f"  档{i+1}上限:"), i+1, 0)
+            rs_grid.addWidget(sp, i+1, 1)
+            rs_grid.addWidget(QLabel(f"mΩ  ({lo:.4f}~{hi:.4f})"), i+1, 2, 1, 3)
+            self.rs_grade_spins.append(sp)
+        
+        layout.addWidget(rs_group)
+        
+        # ------ Rct范围 ------
+        rct_group = QGroupBox("Rct (3档)")
+        rct_grid = QGridLayout(rct_group)
+        rct_grid.setSpacing(4)
+        
+        self.rct_min_spin = QDoubleSpinBox()
+        self.rct_max_spin = QDoubleSpinBox()
+        for sp in (self.rct_min_spin, self.rct_max_spin):
+            sp.setDecimals(4)
+            sp.setRange(0, 9999)
+            sp.setSingleStep(0.5)
+        self.rct_min_spin.setValue(rct_min)
+        self.rct_max_spin.setValue(rct_max)
+        rct_grid.addWidget(QLabel("下限:"), 0, 0)
+        rct_grid.addWidget(self.rct_min_spin, 0, 1)
+        rct_grid.addWidget(QLabel("上限:"), 0, 2)
+        rct_grid.addWidget(self.rct_max_spin, 0, 3)
+        rct_grid.addWidget(QLabel("mΩ"), 0, 4)
+        
+        self.rct_grade_spins = []
+        for i in range(3):
+            sp = QDoubleSpinBox()
+            sp.setDecimals(4)
+            sp.setRange(0, 9999)
+            sp.setSingleStep(0.5)
+            lo, hi = rct_grades[i]
+            sp.setValue(hi)
+            rct_grid.addWidget(QLabel(f"  档{i+1}上限:"), i+1, 0)
+            rct_grid.addWidget(sp, i+1, 1)
+            rct_grid.addWidget(QLabel(f"mΩ  ({lo:.4f}~{hi:.4f})"), i+1, 2, 1, 3)
+            self.rct_grade_spins.append(sp)
+        
+        layout.addWidget(rct_group)
+        
+        # ------ 操作按钮 ------
+        btn_layout = QHBoxLayout()
+        cancel_btn = QPushButton("取消")
+        cancel_btn.clicked.connect(self.reject)
+        save_btn = QPushButton("保存并应用")
+        save_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 8px 20px;")
+        save_btn.clicked.connect(self.accept)
+        btn_layout.addStretch()
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        layout.addLayout(btn_layout)
+        
+        self._rs_grade_count = rs_grade_count
+    
+    def get_values(self) -> dict:
+        """获取编辑后的所有值"""
+        std_v = (self.v_min_spin.value() + self.v_max_spin.value()) / 2
+        v_diff = (self.v_max_spin.value() - self.v_min_spin.value()) / 2
+        
+        # Rs各档上限，用当前编辑值
+        rs_grade_mx = [sp.value() for sp in self.rs_grade_spins]
+        # 构建档位列表，(prev_max, current_max)
+        rs_grades = []
+        prev = self.rs_min_spin.value()
+        for mx in rs_grade_mx:
+            rs_grades.append((prev, mx))
+            prev = mx
+        
+        # Rct各档
+        rct_grade_mx = [sp.value() for sp in self.rct_grade_spins]
+        rct_grades = []
+        prev = self.rct_min_spin.value()
+        for mx in rct_grade_mx:
+            rct_grades.append((prev, mx))
+            prev = mx
+        
+        return {
+            'voltage_min': self.v_min_spin.value(),
+            'voltage_max': self.v_max_spin.value(),
+            'standard_voltage': round(std_v, 4),
+            'voltage_diff': round(v_diff, 4),
+            'rs_min': self.rs_min_spin.value(),
+            'rs_max': self.rs_max_spin.value(),
+            'rs_grade_count': self._rs_grade_count,
+            'rs_grades': rs_grades,
+            'rct_min': self.rct_min_spin.value(),
+            'rct_max': self.rct_max_spin.value(),
+            'rct_grades': rct_grades,
+        }
 
 
 class DataExportDialog(QDialog):
@@ -1770,63 +1930,60 @@ class DataExportDialog(QDialog):
         rs_ranges = split_range(rs_min, rs_max, rs_grade_count)
         rct_ranges = split_range(rct_min, rct_max, 3)
 
-        detail_lines = []
-        detail_lines.append(f"电压: {v_min:.3f}V ~ {v_max:.3f}V")
-        detail_lines.append(f"Rs: {rs_min:.3f}mΩ ~ {rs_max:.3f}mΩ ({rs_grade_count}档)")
-        for i, (lo, hi) in enumerate(rs_ranges):
-            detail_lines.append(f"  Rs档{i+1}: {lo:.3f} ~ {hi:.3f} mΩ")
-        detail_lines.append(f"Rct: {rct_min:.3f}mΩ ~ {rct_max:.3f}mΩ (3档)")
-        for i, (lo, hi) in enumerate(rct_ranges):
-            detail_lines.append(f"  Rct档{i+1}: {lo:.3f} ~ {hi:.3f} mΩ")
-
-        detail_text = "\n".join(detail_lines)
-        sample_info = f"样本数: {len(working)} (合格: {len(pass_samples)})"
-        if len(working) < 3:
-            sample_info += "\n\n提示: 建议选择3个以上合格样本，覆盖不同档位，结果更准确。"
-
-        reply = QMessageBox.question(
-            self, "确认判定范围",
-            f"将从当前选中的数据生成判定范围并保存到配置：\n\n{sample_info}\n\n{detail_text}\n\n确定要保存吗？",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        # 弹出可编辑对话框
+        dialog = GradeRangeEditorDialog(
+            voltage_min=v_min, voltage_max=v_max,
+            rs_min=rs_min, rs_max=rs_max, rs_grade_count=rs_grade_count,
+            rs_grades=rs_ranges,
+            rct_min=rct_min, rct_max=rct_max, rct_grades=rct_ranges,
+            sample_count=len(working), pass_count=len(pass_samples),
+            parent=self
         )
-        if reply != QMessageBox.Yes:
+        if dialog.exec_() != QDialog.Accepted:
             return
 
-        # 保存到配置
-        updates = {
+        vals = dialog.get_values()
+        v_min, v_max = vals['voltage_min'], vals['voltage_max']
+        rs_min, rs_max = vals['rs_min'], vals['rs_max']
+        rct_min, rct_max = vals['rct_min'], vals['rct_max']
+        rs_grades = vals['rs_grades']
+        rct_grades = vals['rct_grades']
+
+        # 保存到配置（使用编辑后的值，绕过 old_value==value 检查）
+        keys_to_save = {
             'grade_settings.voltage_min': round(v_min, 4),
             'grade_settings.voltage_max': round(v_max, 4),
             'grade_settings.min_voltage': round(v_min, 4),
             'grade_settings.max_voltage': round(v_max, 4),
-            'grade_settings.standard_voltage': round((v_min + v_max) / 2, 4),
-            'grade_settings.voltage_diff': round((v_max - v_min) / 2, 4),
+            'grade_settings.standard_voltage': round(vals['standard_voltage'], 4),
+            'grade_settings.voltage_diff': round(vals['voltage_diff'], 4),
             'grade_settings.auto_calc_range': False,
-            'grade_settings.rs_grade_count': rs_grade_count,
+            'grade_settings.rs_grade_count': vals['rs_grade_count'],
             'grade_settings.rs_min': round(rs_min, 4),
             'grade_settings.rs_max': round(rs_max, 4),
             'grade_settings.rs_auto_calc': False,
             'grade_settings.rct_min': round(rct_min, 4),
             'grade_settings.rct_max': round(rct_max, 4),
             'grade_settings.rct_auto_calc': False,
-            'impedance.rs_grade_count': rs_grade_count,
+            'impedance.rs_grade_count': vals['rs_grade_count'],
             'impedance.rs_min': round(rs_min, 4),
             'impedance.rs_grade3_max': round(rs_max, 4),
             'impedance.rct_grade_count': 3,
             'impedance.rct_min': round(rct_min, 4),
             'impedance.rct_grade3_max': round(rct_max, 4),
         }
-        for i, (lo, hi) in enumerate(rs_ranges):
-            updates[f'grade_settings.rs{i+1}_max'] = round(hi, 4)
-            updates[f'impedance.rs_grade{i+1}_max'] = round(hi, 4)
-        for i, (lo, hi) in enumerate(rct_ranges):
-            updates[f'grade_settings.rct{i+1}_max'] = round(hi, 4)
-            updates[f'impedance.rct_grade{i+1}_max'] = round(hi, 4)
+        for i, (lo, hi) in enumerate(rs_grades):
+            keys_to_save[f'grade_settings.rs{i+1}_max'] = round(hi, 4)
+            keys_to_save[f'impedance.rs_grade{i+1}_max'] = round(hi, 4)
+        for i, (lo, hi) in enumerate(rct_grades):
+            keys_to_save[f'grade_settings.rct{i+1}_max'] = round(hi, 4)
+            keys_to_save[f'impedance.rct_grade{i+1}_max'] = round(hi, 4)
 
-        for key, value in updates.items():
+        for key, value in keys_to_save.items():
             self.config_manager.set(key, value)
         self.config_manager.save_config()
 
-        QMessageBox.information(self, "保存成功", f"判定范围已生成并保存到配置！\n\n{detail_text}")
+        QMessageBox.information(self, "保存成功", "判定范围已保存并应用到配置！点开「设置→档位/范围设置」可查看和进一步编辑。")
 
     def _start_export(self, file_path: str, export_format: str, data_to_export: List[Dict] = None):
         """开始导出任务"""

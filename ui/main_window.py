@@ -4285,43 +4285,27 @@ class MainWindow(QMainWindow):
             logger.error(f"退出全屏模式失败: {e}")
 
     def closeEvent(self, event):
-        """窗口关闭事件"""
+        """Window close event - show confirmation dialog and quit"""
         try:
-            # 远程验收阶段要求主进程/API常驻，禁止意外关闭窗口把整个应用带退。
-            # 真正需要退出时，再走显式退出路径并设置 _allow_close=True。
-            if not getattr(self, '_allow_close', False):
-                logger.warning("⚠️ 拦截窗口关闭事件，保持主进程常驻")
+            from PyQt5.QtWidgets import QMessageBox, QApplication
+            reply = QMessageBox.question(
+                self,
+                "确认关闭",
+                "确定要退出程序吗？后台 API 服务将一同停止。",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                self._is_closing = True
+                self._cleanup_resources()
+                logger.info("应用程序正在关闭")
+                event.accept()
+                QApplication.quit()
+            else:
                 event.ignore()
-                try:
-                    self.showMaximized()
-                    self.raise_()
-                    self.activateWindow()
-                except Exception:
-                    pass
-                return
-
-            # 设置关闭标志，停止窗口状态监控
-            self._is_closing = True
-            if hasattr(self, 'window_monitor_timer'):
-                self.window_monitor_timer.stop()
-
-            # 保存窗口设置
-            if hasattr(self, 'window_layout_manager'):
-                self.window_layout_manager.save_window_settings()
-
-            # 保存配置
-            self.config_manager.save_config()
-
-            # 清理资源
-            self._cleanup_resources()
-
-            logger.info("应用程序正在关闭")
-            event.accept()
-
         except Exception as e:
             logger.error(f"关闭窗口失败: {e}")
-            event.ignore()
-
+            event.accept()
     def _cleanup_resources(self):
         """清理资源"""
         try:

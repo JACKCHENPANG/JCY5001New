@@ -42,6 +42,9 @@ class ParallelStaggeredTestConfig:
         self.critical_frequency = 100.0
         self.timeout_seconds = 30.0
         self.status_check_interval = 0.1
+        # 产线默认不测超低频点。0.238/0.119Hz 会显著拉长单次测试时间。
+        # 如需研究模式全频点测试，可显式设置为 0 或 None。
+        self.min_frequency_hz = 0.477
 
 
 class ParallelStaggeredTestManagerSimplified:
@@ -230,14 +233,26 @@ class ParallelStaggeredTestManagerSimplified:
             # 保存配置
             self.config = config
 
-            # 修复正确设置测试开始时间（只设置一次）
-            self.start_time = time.time()
-
             # 修复清除停止事件，准备新的测试
             self.stop_event.clear()
 
             # 🧹 新增：全面清理测试状态，确保干净的测试环境
             self._clean_test_environment()
+
+            # 二次保护：按电压过滤空通道。6V 是设备表示“未接电池”的空通道标志。
+            config.enabled_channels = self._filter_channels_with_battery(config.enabled_channels)
+            if not config.enabled_channels:
+                logger.warning("所有启用通道均未检测到电池，跳过本次测试")
+                return False
+
+            # 产线节拍保护：默认跳过超低频点，避免0.238/0.119Hz拖长测试。
+            config.frequencies = self._filter_slow_frequencies(config.frequencies, config)
+            if not config.frequencies:
+                logger.warning("频点列表为空，跳过本次测试")
+                return False
+
+            # 清理完成后再设置测试开始时间，避免被_clean_test_environment重置
+            self.start_time = time.time()
 
             # 清空重构后的管理器数据
             self.data_collector.clear_all_data()
@@ -362,6 +377,70 @@ class ParallelStaggeredTestManagerSimplified:
             self._set_state(ParallelStaggeredTestState.ERROR)
             return False
 
+    def _filter_channels_with_battery(self, enabled_channels: List[int]) -> List[int]:
+        """过滤未接电池通道，避免空通道参与阻抗测试和拖慢监控。"""
+        try:
+            if not hasattr(self.comm_manager, 'read_battery_voltages'):
+                return enabled_channels
+
+            voltages = self.comm_manager.read_battery_voltages()
+            if not voltages:
+                logger.warning("测试前电压读取失败，保留原始通道列表")
+                return enabled_channels
+
+            valid_channels = []
+            for channel_index in enabled_channels:
+                voltage = voltages[channel_index] if 0 <= channel_index < len(voltages) else None
+                if voltage is not None and 2.0 <= voltage <= 5.0:
+                    valid_channels.append(channel_index)
+                else:
+                    channel_num = channel_index + 1
+                    reason = "未接电池" if voltage is not None and voltage > 5.0 else "电压异常"
+                    logger.info(f"通道{channel_num}{reason}: {voltage}V，跳过测试")
+                    if self.channel_progress_callback:
+                        try:
+                            self.channel_progress_callback(channel_num, {
+                                'state': 'no_battery',
+                                'progress': 0,
+                                'message': f'{reason}: {voltage}V',
+                                'voltage': voltage or 0.0,
+                                'voltage_locked': True,
+                                'should_skip': True
+                            })
+                        except Exception as cb_err:
+                            logger.debug(f"通知通道{channel_num}无电池状态失败: {cb_err}")
+
+            if len(valid_channels) != len(enabled_channels):
+                logger.info(
+                    f"电池预筛选完成，有电池通道: {[ch + 1 for ch in valid_channels]}，"
+                    f"跳过通道: {[ch + 1 for ch in enabled_channels if ch not in valid_channels]}"
+                )
+            return valid_channels
+        except Exception as e:
+            logger.error(f"测试前电池通道过滤失败: {e}")
+            return enabled_channels
+
+    def _filter_slow_frequencies(self, frequencies: List[float], config: ParallelStaggeredTestConfig) -> List[float]:
+        """过滤默认产线模式下的超低频点。"""
+        try:
+            min_frequency = getattr(config, 'min_frequency_hz', 0.477)
+            if min_frequency is None or min_frequency <= 0:
+                return frequencies
+
+            # 设备精确频点为0.4768Hz，UI常显示为0.477Hz；保留1mHz容差避免误跳过。
+            threshold = float(min_frequency) - 0.001
+            filtered = [freq for freq in frequencies if float(freq) >= threshold]
+            skipped = [freq for freq in frequencies if float(freq) < threshold]
+            if skipped:
+                logger.info(
+                    f"跳过超低频点 {skipped}Hz，当前最小测试频率 {min_frequency}Hz；"
+                    "如需研究模式全频点测试，将min_frequency_hz设为0"
+                )
+            return filtered
+        except Exception as e:
+            logger.error(f"过滤超低频点失败: {e}")
+            return frequencies
+
     def _notify_test_completion(self, enabled_channels: List[int]):
         """
         通知测试完成，发送最终的completed状态给所有通道
@@ -383,6 +462,9 @@ class ParallelStaggeredTestManagerSimplified:
                         'message': '测试完成',
                         'frequency': None,
                         'frequency_index': len(self.config.frequencies),
+                        'current_frequency_index': len(self.config.frequencies),
+                        'completed_frequency_count': len(self.config.frequencies),
+                        'completed_frequencies': len(self.config.frequencies),
                         'total_frequencies': len(self.config.frequencies),
                         'mode': 'test_completed',  # 标识为最终测试完成
                         'completed_frequency': None

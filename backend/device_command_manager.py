@@ -40,6 +40,7 @@ class DeviceCommandManager:
 
         # 设备配置缓存
         self.device_config = {}
+        self._data_read_manager = None
 
         # 🚀 优化：预加载频率匹配器，避免重复导入
         from utils.frequency_matcher import frequency_matcher
@@ -878,11 +879,7 @@ class DeviceCommandManager:
         """
         try:
 
-            # 使用数据管理器的批量读取方法
-            from .data_read_manager import DataReadManager
-
-            # 创建临时数据管理器实例来读取数据
-            data_manager = DataReadManager(self.protocol_handler, self.connection_manager)
+            data_manager = self._get_data_read_manager()
 
             # 读取实部和虚部阻抗
             real_impedances = data_manager.read_impedance_real()
@@ -912,6 +909,13 @@ class DeviceCommandManager:
         except Exception as e:
             logger.error(f"批量获取阻抗数据失败: {e}")
             return {}
+
+    def _get_data_read_manager(self):
+        """复用阻抗数据读取器，避免每个频点重复创建对象。"""
+        if self._data_read_manager is None:
+            from .data_read_manager import DataReadManager
+            self._data_read_manager = DataReadManager(self.protocol_handler, self.connection_manager)
+        return self._data_read_manager
 
     def _get_all_channel_status_broadcast(self) -> List[Optional[int]]:
         """

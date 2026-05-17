@@ -157,8 +157,8 @@ class StaggeredTestExecutor:
                 logger.info(f"第{round_index + 1}轮错频测试在设置频点前被用户停止")
                 raise UserStoppedException(f"第{round_index + 1}轮错频测试在设置频点前被用户停止")
 
-            # 新增重试机制：每个频点最多重试3次
-            max_retries = 3
+            # 状态读取不稳定时不要反复整轮重测；优先尝试读取数据确认完成。
+            max_retries = 2
             round_success = False
 
             for retry_index in range(max_retries):
@@ -219,15 +219,7 @@ class StaggeredTestExecutor:
                 # 4. 监控测试完成（最多2秒）
                 self.state = StaggeredTestState.MONITORING
                 if not self._monitor_staggered_completion(enabled_channels, config):
-                    logger.warning(f"第{retry_index + 1}次尝试：错频测试监控超时")
-
-                    if retry_index < max_retries - 1:
-                        logger.info(f"等待0.1秒后重试...")
-                        time.sleep(0.1)
-                        continue
-                    else:
-                        logger.error(f"第{round_index + 1}轮错频测试：监控超时（已重试{max_retries}次）")
-                        return False
+                    logger.warning(f"第{retry_index + 1}次尝试：错频测试监控超时，尝试直接读取数据确认结果")
 
                 monitor_elapsed = time.time() - start_measure_t0
 
@@ -244,18 +236,13 @@ class StaggeredTestExecutor:
                 # 5. 读取阻抗数据（带二次验证）
                 read_t0 = time.time()
                 self.state = StaggeredTestState.READING_DATA
-                # 只重读不重测！测量已完成，数据在设备寄存器
-                _read_ok = False
-                for _rr in range(10):
-                    if self._read_staggered_data(frequency_assignments):
-                        # 二次验证：0.1s后再读一次对比
-                        time.sleep(0.1)
-                        if self._read_staggered_data(frequency_assignments):
-                            _read_ok = True
-                            break
-                    time.sleep(0.05)
+                _read_ok = self._read_staggered_data_with_retries(frequency_assignments)
                 if not _read_ok:
-                    logger.error(f"第{round_index + 1}轮错频：10次读取全部失败")
+                    logger.error(f"第{round_index + 1}轮错频：数据读取失败")
+                    if retry_index < max_retries - 1:
+                        logger.info("等待0.1秒后重试本轮...")
+                        time.sleep(0.1)
+                        continue
                     return False
 
                 read_elapsed = time.time() - read_t0
@@ -290,6 +277,73 @@ class StaggeredTestExecutor:
             return False  # 用户停止，返回False以停止后续轮次
         except Exception as e:
             logger.error(f"执行第{round_index + 1}轮错频测试失败: {e}")
+            return False
+
+    def _read_staggered_data_with_retries(self, frequency_assignments: Dict[int, float]) -> bool:
+        """高频错频数据稳定读取，避免寄存器刷新瞬间造成跳点。"""
+        try:
+            last_snapshot = None
+            max_reads = 4
+            for read_index in range(max_reads):
+                first_snapshot = self.comm_manager.read_impedance_data_broadcast()
+                if not first_snapshot:
+                    time.sleep(0.05)
+                    continue
+
+                time.sleep(0.12)
+                second_snapshot = self.comm_manager.read_impedance_data_broadcast()
+                if not second_snapshot:
+                    last_snapshot = first_snapshot
+                    time.sleep(0.05)
+                    continue
+
+                last_snapshot = second_snapshot
+                if self._is_staggered_snapshot_stable(first_snapshot, second_snapshot, frequency_assignments):
+                    return self._read_staggered_data(frequency_assignments, second_snapshot)
+
+                logger.warning(f"高频错频数据第{read_index + 1}次稳定性检查未通过，继续重读")
+                time.sleep(0.08)
+
+            if last_snapshot:
+                logger.warning("高频错频数据多次稳定性检查未完全通过，使用最后一次读数")
+                return self._read_staggered_data(frequency_assignments, last_snapshot)
+            return False
+        except Exception as e:
+            logger.error(f"错频数据重读失败: {e}")
+            return False
+
+    def _is_staggered_snapshot_stable(self, first_snapshot: Dict[int, Any],
+                                      second_snapshot: Dict[int, Any],
+                                      frequency_assignments: Dict[int, float]) -> bool:
+        """判断两次阻抗快照在本轮有效通道上是否稳定。"""
+        try:
+            for channel_index in frequency_assignments:
+                first_data = first_snapshot.get(channel_index)
+                second_data = second_snapshot.get(channel_index)
+                if not isinstance(first_data, dict) or not isinstance(second_data, dict):
+                    logger.debug(f"通道{channel_index + 1}稳定性检查数据缺失")
+                    return False
+                if 'real' not in first_data or 'imag' not in first_data or 'real' not in second_data or 'imag' not in second_data:
+                    logger.debug(f"通道{channel_index + 1}稳定性检查数据格式错误")
+                    return False
+
+                real_delta = abs(float(first_data['real']) - float(second_data['real']))
+                imag_delta = abs(float(first_data['imag']) - float(second_data['imag']))
+                magnitude = max(
+                    (float(first_data['real']) ** 2 + float(first_data['imag']) ** 2) ** 0.5,
+                    (float(second_data['real']) ** 2 + float(second_data['imag']) ** 2) ** 0.5,
+                    1.0
+                )
+                tolerance = max(20.0, magnitude * 0.02)
+                if real_delta > tolerance or imag_delta > tolerance:
+                    logger.warning(
+                        f"通道{channel_index + 1}高频读数未稳定: "
+                        f"dRe={real_delta:.3f}, dIm={imag_delta:.3f}, tol={tolerance:.3f}"
+                    )
+                    return False
+            return True
+        except Exception as e:
+            logger.error(f"高频错频数据稳定性检查失败: {e}")
             return False
     
     def _set_staggered_frequencies(self, frequency_assignments: Dict[int, float]) -> bool:
@@ -435,7 +489,8 @@ class StaggeredTestExecutor:
             logger.error(f"监控错频测试完成失败: {e}")
             return False
     
-    def _read_staggered_data(self, frequency_assignments: Dict[int, float]) -> bool:
+    def _read_staggered_data(self, frequency_assignments: Dict[int, float],
+                             impedance_data: Optional[Dict[int, Any]] = None) -> bool:
         """
         读取错频测试数据
 
@@ -449,7 +504,8 @@ class StaggeredTestExecutor:
             logger.debug("读取错频测试数据")
 
             # 批量读取阻抗数据
-            impedance_data = self.comm_manager.read_impedance_data_broadcast()
+            if impedance_data is None:
+                impedance_data = self.comm_manager.read_impedance_data_broadcast()
 
             if not impedance_data:
                 logger.error("读取错频阻抗数据失败")
@@ -477,41 +533,6 @@ class StaggeredTestExecutor:
                         'magnitude': (channel_raw_data['real']**2 + channel_raw_data['imag']**2)**0.5,
                         'phase': 0.0  # 可以后续计算
                     }
-
-                    # 陈旧数据检测：仅与同一通道最近一次结果对比，避免把不同频点的正常接近值误判为旧数据
-                    new_r = channel_raw_data['real']
-                    new_i = channel_raw_data['imag']
-                    stale = False
-                    last_point = None
-                    for fk in sorted(self.test_results.keys(), reverse=True):
-                        if channel_index in self.test_results[fk]:
-                            p = self.test_results[fk][channel_index]
-                            if isinstance(p, dict):
-                                last_point = p
-                                break
-
-                    if last_point is not None:
-                        pr = last_point.get('real_impedance', 0)
-                        pi = last_point.get('imaginary_impedance', 0)
-                        if abs(new_r - pr) < 0.5 and abs(new_i - pi) < 0.5:
-                            stale = True
-
-                    if stale:
-                        logger.warning(f"通道{channel_index+1}频点{frequency}Hz数据疑似陈旧，等0.2s后重读")
-                        time.sleep(0.2)
-                        # 重新读取（不重测！等数据寄存器刷新）
-                        retry_data = self.comm_manager.read_impedance_data_broadcast()
-                        if retry_data and channel_index in retry_data:
-                            rd = retry_data[channel_index]
-                            if isinstance(rd, dict) and 'real' in rd and 'imag' in rd:
-                                if abs(rd['real'] - new_r) > 1.0 or abs(rd['imag'] - new_i) > 1.0:
-                                    logger.info(f"通道{channel_index+1}重读数据已更新")
-                                    channel_raw_data.update({'real': rd['real'], 'imag': rd['imag']})
-                                    channel_data = {'real_impedance': rd['real'], 'imaginary_impedance': rd['imag'], 'magnitude': (rd['real']**2+rd['imag']**2)**0.5, 'phase': 0.0}
-                                else:
-                                    logger.warning(f"通道{channel_index+1}重读仍相同，接受稳定值")
-                        else:
-                            logger.warning(f"通道{channel_index+1}重读失败，接受首次读数")
 
                     # 初始化频率结果字典
                     if frequency not in self.test_results:
@@ -543,19 +564,23 @@ class StaggeredTestExecutor:
         if self.channel_progress_callback:
             try:
                 total_frequencies = len(config.frequencies)
-                completed_frequencies = len(self.test_results)
 
                 # 修复添加详细的进度计算日志
 
                 for channel_index, frequency in frequency_assignments.items():
                     channel_num = channel_index + 1  # 转换为1-8的通道号
 
-                    # 为每个通道计算正确的频点索引
-                    frequency_index = self.frequency_classifier.find_frequency_index(frequency)
+                    completed_frequencies = self._get_channel_completed_frequency_count(channel_index)
+                    current_frequency_index = min(completed_frequencies + 1, total_frequencies)
 
                     # 修复进度计算应该基于已完成的频点，而不是正在开始的频点
                     # 在频点开始时，进度应该反映之前已完成的频点数量
-                    progress = int((completed_frequencies / total_frequencies) * 100)
+                    base_progress = (completed_frequencies / total_frequencies) * 100.0
+                    if not hasattr(self, '_progress_start'):
+                        self._progress_start = time.time()
+                    elapsed = time.time() - self._progress_start
+                    time_floor = min(elapsed * 3.0, 25.0)
+                    progress = int(max(base_progress, time_floor))
 
                     # 简化进度计算日志
                     logger.debug(f"通道{channel_num}进度: {progress}%, 当前频率: {frequency}Hz")
@@ -566,7 +591,10 @@ class StaggeredTestExecutor:
                         'progress': progress,
                         'message': f'错频测试: {frequency}Hz',
                         'frequency': frequency,  # 每个通道的实际频率
-                        'frequency_index': frequency_index,  # 使用每个通道的实际频点索引
+                        'frequency_index': completed_frequencies,
+                        'current_frequency_index': current_frequency_index,
+                        'completed_frequency_count': completed_frequencies,
+                        'completed_frequencies': completed_frequencies,
                         'total_frequencies': total_frequencies,
                         'round_index': round_index + 1,
                         'mode': 'staggered',  # 标识为错频模式
@@ -576,7 +604,10 @@ class StaggeredTestExecutor:
                     # 调用通道进度回调
                     self.channel_progress_callback(channel_num, progress_data)
 
-                    logger.debug(f"通知通道{channel_num}频率: {frequency}Hz (错频模式), 索引: {frequency_index}")
+                    logger.debug(
+                        f"通知通道{channel_num}频率: {frequency}Hz (错频模式), "
+                        f"已完成频点: {completed_frequencies}/{total_frequencies}"
+                    )
 
             except Exception as e:
                 logger.error(f"通道频率通知失败: {e}")
@@ -592,16 +623,20 @@ class StaggeredTestExecutor:
         if self.channel_progress_callback:
             try:
                 total_frequencies = len(config.frequencies)
-                completed_frequencies = len(self.test_results)
 
-                # 修复频点完成后的进度计算
-                progress = int((completed_frequencies / total_frequencies) * 100)
+                if not hasattr(self, '_progress_start'):
+                    self._progress_start = time.time()
+                elapsed = time.time() - self._progress_start
+                time_floor = min(elapsed * 3.0, 25.0)
 
-                logger.debug(f"频点{frequency}Hz完成，总进度: {progress}%")
+                logger.debug(f"频点{frequency}Hz完成，按通道更新频点进度")
 
                 # 通知所有启用的通道进度更新
                 for channel_index in config.enabled_channels:
                     channel_num = channel_index + 1
+                    completed_frequencies = self._get_channel_completed_frequency_count(channel_index)
+                    base_progress = (completed_frequencies / total_frequencies) * 100.0
+                    progress = int(max(base_progress, time_floor))
 
                     # 关键修复根据进度确定状态，测试完成时发送completed状态
                     test_state = 'completed' if progress >= 100 else 'testing'
@@ -612,6 +647,9 @@ class StaggeredTestExecutor:
                         'message': f'频点{frequency}Hz完成',
                         'frequency': frequency,
                         'frequency_index': completed_frequencies,
+                        'current_frequency_index': completed_frequencies,
+                        'completed_frequency_count': completed_frequencies,
+                        'completed_frequencies': completed_frequencies,
                         'total_frequencies': total_frequencies,
                         'mode': 'staggered_completed',  # 标识为错频完成
                         'completed_frequency': frequency
@@ -631,6 +669,18 @@ class StaggeredTestExecutor:
     def get_test_results(self) -> Dict[float, Dict[int, Any]]:
         """获取测试结果"""
         return self.test_results.copy()
+
+    def _get_channel_completed_frequency_count(self, channel_index: int) -> int:
+        """统计指定通道已经保存数据的频点数。"""
+        try:
+            return sum(
+                1
+                for channel_results in self.test_results.values()
+                if isinstance(channel_results, dict) and channel_index in channel_results
+            )
+        except Exception as e:
+            logger.debug(f"统计通道{channel_index + 1}已完成频点数失败: {e}")
+            return 0
     
     def clear_results(self):
         """清空测试结果"""
